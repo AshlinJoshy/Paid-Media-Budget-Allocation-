@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
-// GET /api/supermetrics/debug?ds_id=FA
-// Returns the raw Supermetrics API response so you can see what's coming back.
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const dsId = searchParams.get('ds_id') ?? 'FA';
-
+// GET /api/supermetrics/debug
+// Probes the data-source-logins endpoint and returns the raw response.
+export async function GET() {
   const { data: keyRow } = await supabase
     .from('settings')
     .select('value')
@@ -17,20 +14,23 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'No API key saved yet.' }, { status: 400 });
   }
 
+  const apiKey = keyRow.value;
   const BASE = 'https://api.supermetrics.com/enterprise/v2';
-  const url = `${BASE}/meta/profiles?api_key=${encodeURIComponent(keyRow.value)}&ds_id=${encodeURIComponent(dsId)}`;
+  const url = `${BASE}/data-source-logins?api_key=${encodeURIComponent(apiKey)}`;
 
   try {
-    const res = await fetch(url, { cache: 'no-store' });
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      cache: 'no-store',
+    });
     const text = await res.text();
     let parsed: unknown = text;
-    try { parsed = JSON.parse(text); } catch { /* keep raw text */ }
+    try { parsed = JSON.parse(text); } catch { /* keep raw */ }
 
     return NextResponse.json({
-      ds_id: dsId,
+      endpoint: url.replace(apiKey, '***'),
       status: res.status,
       ok: res.ok,
-      url_called: url.replace(keyRow.value, '***'),
       raw_response: parsed,
     });
   } catch (err) {

@@ -14,33 +14,48 @@ export interface SMRawCampaign {
 
 export interface SMAccountsResult {
   accounts: SMRawAccount[];
-  rawResponse?: unknown; // for debugging
+  rawResponse?: unknown;
 }
 
+function authHeaders(apiKey: string) {
+  return { Authorization: `Bearer ${apiKey}` };
+}
+
+// Fetch all connected ad accounts via data-source-logins endpoint.
+// Returns accounts filtered to dsId if provided, or all accounts.
 export async function smFetchAccounts(apiKey: string, dsId: string): Promise<SMAccountsResult> {
-  const url = `${BASE}/meta/profiles?api_key=${encodeURIComponent(apiKey)}&ds_id=${encodeURIComponent(dsId)}`;
-  const res = await fetch(url, { cache: 'no-store' });
+  const url = `${BASE}/data-source-logins?api_key=${encodeURIComponent(apiKey)}`;
+  const res = await fetch(url, {
+    headers: authHeaders(apiKey),
+    cache: 'no-store',
+  });
 
   const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`);
-  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`);
 
   let json: unknown;
   try { json = JSON.parse(text); } catch {
     throw new Error(`Non-JSON response: ${text.slice(0, 200)}`);
   }
 
-  // Handle multiple possible response shapes from Supermetrics
-  let accounts: SMRawAccount[] = [];
+  // Extract the list from whatever shape Supermetrics returns
+  let logins: Record<string, unknown>[] = [];
   if (Array.isArray(json)) {
-    accounts = json as SMRawAccount[];
+    logins = json as Record<string, unknown>[];
   } else if (json && typeof json === 'object') {
     const obj = json as Record<string, unknown>;
-    // Try common keys in order
-    const candidate = obj.data ?? obj.profiles ?? obj.accounts ?? obj.results ?? [];
-    accounts = Array.isArray(candidate) ? (candidate as SMRawAccount[]) : [];
+    const candidate = obj.data ?? obj.logins ?? obj.results ?? obj.accounts ?? [];
+    logins = Array.isArray(candidate) ? (candidate as Record<string, unknown>[]) : [];
   }
+
+  // Filter by ds_id and extract id + name
+  const accounts: SMRawAccount[] = logins
+    .filter((l) => !dsId || l.ds_id === dsId)
+    .map((l) => ({
+      id: String(l.account_id ?? l.id ?? ''),
+      name: String(l.account_name ?? l.name ?? l.account_id ?? l.id ?? ''),
+    }))
+    .filter((a) => a.id);
 
   return { accounts, rawResponse: json };
 }
@@ -71,7 +86,7 @@ export async function smFetchCampaigns(
 
   const res = await fetch(`${BASE}/query/data/json`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders(apiKey) },
     body: JSON.stringify(body),
     cache: 'no-store',
   });
