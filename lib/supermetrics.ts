@@ -24,7 +24,7 @@ function authHeaders(apiKey: string) {
 // Fetch all connected ad accounts via the Management API /query/accounts endpoint.
 // Filters to dsId if provided, or returns all platforms.
 export async function smFetchAccounts(apiKey: string, dsId: string): Promise<SMAccountsResult> {
-  const url = `${BASE}/query/accounts?api_key=${encodeURIComponent(apiKey)}`;
+  const url = `${BASE}/query/accounts?api_key=${encodeURIComponent(apiKey)}&ds_id=${encodeURIComponent(dsId)}`;
   // Use query param only — avoids ByteString issues if key has non-ASCII chars
   const res = await fetch(url, { cache: 'no-store' });
 

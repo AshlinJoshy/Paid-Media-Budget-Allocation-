@@ -8,7 +8,7 @@ export async function GET() {
     return NextResponse.json({ error: 'No API key saved yet.' }, { status: 400 });
   }
 
-  const url = `https://api.supermetrics.com/enterprise/v2/query/accounts?api_key=${encodeURIComponent(apiKey)}`;
+  const url = `https://api.supermetrics.com/enterprise/v2/query/accounts?api_key=${encodeURIComponent(apiKey)}&ds_id=FA`;
 
   try {
     const res = await fetch(url, { cache: 'no-store' });
