@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, getSmApiKey } from '@/lib/supabase';
 import { smFetchAccounts } from '@/lib/supermetrics';
 import { DS_NAMES } from '@/types';
 
@@ -14,20 +14,14 @@ export async function GET() {
 }
 
 export async function POST() {
-  const { data: keyRow } = await supabase
-    .from('settings')
-    .select('value')
-    .eq('key', 'supermetrics_api_key')
-    .single();
-
-  if (!keyRow?.value) {
+  const apiKey = await getSmApiKey();
+  if (!apiKey) {
     return NextResponse.json(
       { error: 'No API key configured. Please add it in Settings.' },
       { status: 400 }
     );
   }
 
-  const apiKey = keyRow.value;
   const errors: string[] = [];
   const perPlatform: Record<string, number> = {};
   let totalFetched = 0;
@@ -47,7 +41,6 @@ export async function POST() {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      // Only skip true 404s (platform genuinely not available on this key)
       if (msg.includes('HTTP 404')) {
         perPlatform[DS_NAMES[dsId]] = 0;
       } else {

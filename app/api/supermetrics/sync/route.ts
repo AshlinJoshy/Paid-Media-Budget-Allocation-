@@ -1,16 +1,11 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, getSmApiKey } from '@/lib/supabase';
 import { smFetchCampaigns, parseCampaignRow } from '@/lib/supermetrics';
 import { DS_TO_PLATFORM } from '@/types';
 
 export async function POST(req: Request) {
-  const { data: keyRow } = await supabase
-    .from('settings')
-    .select('value')
-    .eq('key', 'supermetrics_api_key')
-    .single();
-
-  if (!keyRow?.value) {
+  const apiKey = await getSmApiKey();
+  if (!apiKey) {
     return NextResponse.json({ error: 'No API key configured.' }, { status: 400 });
   }
 
@@ -42,7 +37,7 @@ export async function POST(req: Request) {
   for (const [dsId, accountIds] of Object.entries(byDs)) {
     for (const accountId of accountIds) {
       try {
-        const rows = await smFetchCampaigns(keyRow.value, dsId, [accountId], dateRange);
+        const rows = await smFetchCampaigns(apiKey, dsId, [accountId], dateRange);
         const platform = DS_TO_PLATFORM[dsId] ?? 'unknown';
 
         for (const row of rows) {

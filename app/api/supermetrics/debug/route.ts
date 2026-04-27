@@ -1,19 +1,13 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { getSmApiKey } from '@/lib/supabase';
 
-// GET /api/supermetrics/debug — calls /query/accounts and returns the raw response
 export async function GET() {
-  const { data: keyRow } = await supabase
-    .from('settings')
-    .select('value')
-    .eq('key', 'supermetrics_api_key')
-    .single();
+  const apiKey = await getSmApiKey();
 
-  if (!keyRow?.value) {
+  if (!apiKey) {
     return NextResponse.json({ error: 'No API key saved yet.' }, { status: 400 });
   }
 
-  const apiKey = keyRow.value;
   const url = `https://api.supermetrics.com/enterprise/v2/query/accounts?api_key=${encodeURIComponent(apiKey)}`;
 
   try {
@@ -24,6 +18,8 @@ export async function GET() {
 
     return NextResponse.json({
       endpoint: '/enterprise/v2/query/accounts',
+      key_length: apiKey.length,
+      key_preview: `${apiKey.slice(0, 4)}…${apiKey.slice(-4)}`,
       status: res.status,
       ok: res.ok,
       raw_response: parsed,
