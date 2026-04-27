@@ -22,10 +22,8 @@ function authHeaders(apiKey: string) {
 }
 
 // Fetch all connected ad accounts via the Management API /query/accounts endpoint.
-// Filters to dsId if provided, or returns all platforms.
 export async function smFetchAccounts(apiKey: string, dsId: string): Promise<SMAccountsResult> {
   const url = `${BASE}/query/accounts?api_key=${encodeURIComponent(apiKey)}&ds_id=${encodeURIComponent(dsId)}`;
-  // Use query param only — avoids ByteString issues if key has non-ASCII chars
   const res = await fetch(url, { cache: 'no-store' });
 
   const text = await res.text();
@@ -36,24 +34,21 @@ export async function smFetchAccounts(apiKey: string, dsId: string): Promise<SMA
     throw new Error(`Non-JSON response: ${text.slice(0, 200)}`);
   }
 
-  // Extract the list from whatever shape Supermetrics returns
-  let logins: Record<string, unknown>[] = [];
-  if (Array.isArray(json)) {
-    logins = json as Record<string, unknown>[];
-  } else if (json && typeof json === 'object') {
-    const obj = json as Record<string, unknown>;
-    const candidate = obj.data ?? obj.logins ?? obj.accounts ?? obj.results ?? [];
-    logins = Array.isArray(candidate) ? (candidate as Record<string, unknown>[]) : [];
-  }
+  // Response shape: { data: [{ ds_user, accounts: [{ account_id, account_name }] }] }
+  const accounts: SMRawAccount[] = [];
+  const obj = json as Record<string, unknown>;
+  const dataArr = Array.isArray(obj?.data) ? obj.data as Record<string, unknown>[] : [];
 
-  // Filter by ds_id and extract id + name
-  const accounts: SMRawAccount[] = logins
-    .filter((l) => !dsId || l.ds_id === dsId)
-    .map((l) => ({
-      id: String(l.account_id ?? l.id ?? ''),
-      name: String(l.account_name ?? l.name ?? l.account_id ?? l.id ?? ''),
-    }))
-    .filter((a) => a.id);
+  for (const userEntry of dataArr) {
+    const nested = userEntry.accounts;
+    if (Array.isArray(nested)) {
+      for (const acc of nested as Record<string, unknown>[]) {
+        const id = String(acc.account_id ?? acc.id ?? '');
+        const name = String(acc.account_name ?? acc.name ?? id);
+        if (id) accounts.push({ id, name });
+      }
+    }
+  }
 
   return { accounts, rawResponse: json };
 }
