@@ -153,14 +153,24 @@ export default function SettingsPage() {
               Find your API key in Supermetrics → Account settings → API access.
             </p>
             {hasKey && (
-              <a
-                href="/api/supermetrics/debug?ds_id=FA"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-blue-500 hover:underline shrink-0 ml-2"
-              >
-                Test API (raw response) ↗
-              </a>
+              <div className="flex gap-3 ml-2 shrink-0">
+                <a
+                  href="/api/supermetrics/debug"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-500 hover:underline"
+                >
+                  Test accounts API ↗
+                </a>
+                <a
+                  href="/api/supermetrics/debug-campaigns"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-500 hover:underline"
+                >
+                  Test campaigns API ↗
+                </a>
+              </div>
             )}
           </div>
         </section>
