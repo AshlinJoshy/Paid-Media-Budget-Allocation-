@@ -21,10 +21,10 @@ function authHeaders(apiKey: string) {
   return { Authorization: `Bearer ${apiKey}` };
 }
 
-// Fetch all connected ad accounts via data-source-logins endpoint.
-// Returns accounts filtered to dsId if provided, or all accounts.
+// Fetch all connected ad accounts via the Management API /query/accounts endpoint.
+// Filters to dsId if provided, or returns all platforms.
 export async function smFetchAccounts(apiKey: string, dsId: string): Promise<SMAccountsResult> {
-  const url = `${BASE}/data-source-logins?api_key=${encodeURIComponent(apiKey)}`;
+  const url = `${BASE}/query/accounts?api_key=${encodeURIComponent(apiKey)}`;
   const res = await fetch(url, {
     headers: authHeaders(apiKey),
     cache: 'no-store',
@@ -44,7 +44,7 @@ export async function smFetchAccounts(apiKey: string, dsId: string): Promise<SMA
     logins = json as Record<string, unknown>[];
   } else if (json && typeof json === 'object') {
     const obj = json as Record<string, unknown>;
-    const candidate = obj.data ?? obj.logins ?? obj.results ?? obj.accounts ?? [];
+    const candidate = obj.data ?? obj.logins ?? obj.accounts ?? obj.results ?? [];
     logins = Array.isArray(candidate) ? (candidate as Record<string, unknown>[]) : [];
   }
 
