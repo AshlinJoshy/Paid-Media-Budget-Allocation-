@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
-// GET /api/supermetrics/debug
-// Probes the data-source-logins endpoint and returns the raw response.
+// Probes every plausible Supermetrics v2 endpoint path and returns all results.
+// Open this in your browser to see which one returns 200.
 export async function GET() {
   const { data: keyRow } = await supabase
     .from('settings')
@@ -16,24 +16,41 @@ export async function GET() {
 
   const apiKey = keyRow.value;
   const BASE = 'https://api.supermetrics.com/enterprise/v2';
-  const url = `${BASE}/data-source-logins?api_key=${encodeURIComponent(apiKey)}`;
+  const headers = { Authorization: `Bearer ${apiKey}` };
 
-  try {
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      cache: 'no-store',
-    });
-    const text = await res.text();
-    let parsed: unknown = text;
-    try { parsed = JSON.parse(text); } catch { /* keep raw */ }
+  const candidates = [
+    `${BASE}/ds-accounts`,
+    `${BASE}/ds-logins`,
+    `${BASE}/accounts`,
+    `${BASE}/logins`,
+    `${BASE}/datasources`,
+    `${BASE}/data-sources`,
+    `${BASE}/connectors`,
+    `${BASE}/connections`,
+    `${BASE}/profiles`,
+    `${BASE}/me`,
+    `${BASE}/user`,
+  ];
 
-    return NextResponse.json({
-      endpoint: url.replace(apiKey, '***'),
-      status: res.status,
-      ok: res.ok,
-      raw_response: parsed,
-    });
-  } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
-  }
+  const results = await Promise.all(
+    candidates.map(async (url) => {
+      try {
+        const res = await fetch(`${url}?api_key=${encodeURIComponent(apiKey)}`, {
+          headers,
+          cache: 'no-store',
+        });
+        const text = await res.text();
+        let parsed: unknown = text;
+        try { parsed = JSON.parse(text); } catch { /* keep raw */ }
+        return { url: url.replace(BASE, '/enterprise/v2'), status: res.status, ok: res.ok, response: parsed };
+      } catch (e) {
+        return { url: url.replace(BASE, '/enterprise/v2'), status: 0, ok: false, response: String(e) };
+      }
+    })
+  );
+
+  return NextResponse.json({
+    note: 'Find the entry with ok:true — that is the correct endpoint',
+    results,
+  });
 }
