@@ -17,10 +17,7 @@ export async function GET() {
   const url = `https://api.supermetrics.com/enterprise/v2/query/accounts?api_key=${encodeURIComponent(apiKey)}`;
 
   try {
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      cache: 'no-store',
-    });
+    const res = await fetch(url, { cache: 'no-store' });
     const text = await res.text();
     let parsed: unknown = text;
     try { parsed = JSON.parse(text); } catch { /* keep raw */ }

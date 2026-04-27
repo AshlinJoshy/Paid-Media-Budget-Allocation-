@@ -15,6 +15,12 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const body = await req.json() as Record<string, string>;
+  // Strip non-ASCII chars from API key so it's always safe in HTTP headers/URLs
+  if (body.supermetrics_api_key) {
+    body.supermetrics_api_key = body.supermetrics_api_key
+      .replace(/[^\x00-\x7F]/g, '')  // remove non-ASCII
+      .trim();
+  }
   const rows = Object.entries(body).map(([key, value]) => ({ key, value }));
 
   const { error } = await supabase

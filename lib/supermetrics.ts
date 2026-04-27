@@ -25,10 +25,8 @@ function authHeaders(apiKey: string) {
 // Filters to dsId if provided, or returns all platforms.
 export async function smFetchAccounts(apiKey: string, dsId: string): Promise<SMAccountsResult> {
   const url = `${BASE}/query/accounts?api_key=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url, {
-    headers: authHeaders(apiKey),
-    cache: 'no-store',
-  });
+  // Use query param only — avoids ByteString issues if key has non-ASCII chars
+  const res = await fetch(url, { cache: 'no-store' });
 
   const text = await res.text();
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`);
@@ -86,7 +84,7 @@ export async function smFetchCampaigns(
 
   const res = await fetch(`${BASE}/query/data/json`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders(apiKey) },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     cache: 'no-store',
   });
