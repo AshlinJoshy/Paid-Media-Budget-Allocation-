@@ -1,44 +1,42 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
-import { v4 as uuidv4 } from 'uuid';
+import { supabase } from '@/lib/supabase';
 import { getPlatformFromSource } from '@/types';
 
 export async function POST(req: Request) {
-  const db = getDb();
   const body = await req.json();
-  const id = uuidv4();
-
   const platform = body.platform || getPlatformFromSource(body.source ?? '');
 
-  db.prepare(`
-    INSERT INTO paid_assignments (
-      id, marketing_campaign_id, supermetrics_campaign_id, paid_campaign_name,
-      type, source, platform, start_month, start_date, status, campaign_status,
-      budget_allocation, budget_spent, leads
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    id,
-    body.marketing_campaign_id,
-    body.supermetrics_campaign_id ?? null,
-    body.paid_campaign_name ?? '',
-    body.type ?? '',
-    body.source ?? '',
-    platform,
-    body.start_month ?? '',
-    body.start_date ?? '',
-    body.status ?? 'Live',
-    body.campaign_status ?? '',
-    body.budget_allocation ?? 0,
-    body.budget_spent ?? 0,
-    body.leads ?? 0,
-  );
+  const { data, error } = await supabase
+    .from('paid_assignments')
+    .insert({
+      marketing_campaign_id: body.marketing_campaign_id,
+      supermetrics_campaign_id: body.supermetrics_campaign_id ?? null,
+      paid_campaign_name: body.paid_campaign_name ?? '',
+      type: body.type ?? '',
+      source: body.source ?? '',
+      platform,
+      start_month: body.start_month ?? '',
+      start_date: body.start_date ?? '',
+      status: body.status ?? 'Live',
+      campaign_status: body.campaign_status ?? '',
+      budget_allocation: body.budget_allocation ?? 0,
+      budget_spent: body.budget_spent ?? 0,
+      leads: body.leads ?? 0,
+    })
+    .select()
+    .single();
 
-  const row = db.prepare(`SELECT * FROM paid_assignments WHERE id = ?`).get(id) as Record<string, unknown>;
-  return NextResponse.json({
-    ...row,
-    remaining: (row.budget_allocation as number) - (row.budget_spent as number),
-    cpl: (row.leads as number) > 0
-      ? Math.round(((row.budget_spent as number) / (row.leads as number)) * 100) / 100
-      : 0,
-  }, { status: 201 });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const alloc = Number(data.budget_allocation);
+  const spent = Number(data.budget_spent);
+  const leads = Number(data.leads);
+  return NextResponse.json(
+    {
+      ...data,
+      remaining: alloc - spent,
+      cpl: leads > 0 ? Math.round((spent / leads) * 100) / 100 : 0,
+    },
+    { status: 201 }
+  );
 }

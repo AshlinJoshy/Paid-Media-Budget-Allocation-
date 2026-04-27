@@ -1,37 +1,47 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
-import { v4 as uuidv4 } from 'uuid';
+import { supabase } from '@/lib/supabase';
+
+function withComputed(a: Record<string, unknown>) {
+  const alloc = Number(a.budget_allocation ?? 0);
+  const spent = Number(a.budget_spent ?? 0);
+  const leads = Number(a.leads ?? 0);
+  return {
+    ...a,
+    remaining: alloc - spent,
+    cpl: leads > 0 ? Math.round((spent / leads) * 100) / 100 : 0,
+  };
+}
 
 export async function GET() {
-  const db = getDb();
-  const campaigns = db.prepare(`SELECT * FROM marketing_campaigns ORDER BY created_at ASC`).all();
-  const assignments = db.prepare(`SELECT * FROM paid_assignments ORDER BY created_at ASC`).all();
+  const { data: campaigns, error: ce } = await supabase
+    .from('marketing_campaigns')
+    .select('*')
+    .order('created_at', { ascending: true });
+  if (ce) return NextResponse.json({ error: ce.message }, { status: 500 });
 
-  type CRow = Record<string, unknown>;
-  const result = (campaigns as CRow[]).map((c) => ({
+  const { data: assignments, error: ae } = await supabase
+    .from('paid_assignments')
+    .select('*')
+    .order('created_at', { ascending: true });
+  if (ae) return NextResponse.json({ error: ae.message }, { status: 500 });
+
+  const result = (campaigns ?? []).map((c) => ({
     ...c,
-    assignments: (assignments as CRow[])
+    assignments: (assignments ?? [])
       .filter((a) => a.marketing_campaign_id === c.id)
-      .map((a) => ({
-        ...a,
-        remaining: (a.budget_allocation as number) - (a.budget_spent as number),
-        cpl: (a.leads as number) > 0
-          ? Math.round(((a.budget_spent as number) / (a.leads as number)) * 100) / 100
-          : 0,
-      })),
+      .map(withComputed),
   }));
 
   return NextResponse.json(result);
 }
 
 export async function POST(req: Request) {
-  const db = getDb();
   const body = await req.json();
-  const id = uuidv4();
-  db.prepare(`
-    INSERT INTO marketing_campaigns (id, entity, name)
-    VALUES (?, ?, ?)
-  `).run(id, body.entity ?? '', body.name ?? '');
-  const campaign = db.prepare(`SELECT * FROM marketing_campaigns WHERE id = ?`).get(id);
-  return NextResponse.json({ ...(campaign as object), assignments: [] }, { status: 201 });
+  const { data, error } = await supabase
+    .from('marketing_campaigns')
+    .insert({ entity: body.entity ?? '', name: body.name ?? '' })
+    .select()
+    .single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ...data, assignments: [] }, { status: 201 });
 }

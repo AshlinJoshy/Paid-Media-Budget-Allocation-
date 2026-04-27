@@ -1,23 +1,25 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 
 export async function GET() {
-  const db = getDb();
-  const rows = db.prepare(`SELECT key, value FROM settings`).all() as { key: string; value: string }[];
+  const { data, error } = await supabase.from('settings').select('key, value');
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
   const settings: Record<string, string> = {};
-  for (const row of rows) settings[row.key] = row.value;
-  // Never return the API key to the client in plain text — just indicate if it's set
+  for (const row of data ?? []) settings[row.key] = row.value;
+
   const hasKey = !!settings['supermetrics_api_key'];
   delete settings['supermetrics_api_key'];
   return NextResponse.json({ ...settings, has_api_key: String(hasKey) });
 }
 
 export async function POST(req: Request) {
-  const db = getDb();
   const body = await req.json() as Record<string, string>;
-  const upsert = db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`);
-  for (const [key, value] of Object.entries(body)) {
-    upsert.run(key, value);
-  }
+  const rows = Object.entries(body).map(([key, value]) => ({ key, value }));
+
+  const { error } = await supabase
+    .from('settings')
+    .upsert(rows, { onConflict: 'key' });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }

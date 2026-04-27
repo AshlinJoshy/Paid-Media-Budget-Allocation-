@@ -1,25 +1,32 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
+
+const ALLOWED = ['entity', 'name'];
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const db = getDb();
   const body = await req.json();
-  const fields = Object.keys(body).filter((k) => ['entity', 'name'].includes(k));
-  if (fields.length === 0) return NextResponse.json({ error: 'No valid fields' }, { status: 400 });
+  const update: Record<string, unknown> = {};
+  for (const key of ALLOWED) {
+    if (key in body) update[key] = body[key];
+  }
+  if (Object.keys(update).length === 0)
+    return NextResponse.json({ error: 'No valid fields' }, { status: 400 });
 
-  const sets = fields.map((f) => `${f} = ?`).join(', ');
-  const values = fields.map((f) => body[f]);
-  db.prepare(`UPDATE marketing_campaigns SET ${sets}, updated_at = datetime('now') WHERE id = ?`)
-    .run(...values, id);
-
-  const updated = db.prepare(`SELECT * FROM marketing_campaigns WHERE id = ?`).get(id);
-  return NextResponse.json(updated);
+  update.updated_at = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('marketing_campaigns')
+    .update(update)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const db = getDb();
-  db.prepare(`DELETE FROM marketing_campaigns WHERE id = ?`).run(id);
+  const { error } = await supabase.from('marketing_campaigns').delete().eq('id', id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }
