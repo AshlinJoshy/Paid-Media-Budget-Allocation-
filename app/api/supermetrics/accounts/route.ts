@@ -29,12 +29,15 @@ export async function POST() {
 
   const apiKey = keyRow.value;
   const errors: string[] = [];
+  const perPlatform: Record<string, number> = {};
   let totalFetched = 0;
 
   for (const dsId of Object.keys(DS_NAMES)) {
     try {
-      const accounts = await smFetchAccounts(apiKey, dsId);
+      const { accounts } = await smFetchAccounts(apiKey, dsId);
       const dsName = DS_NAMES[dsId];
+      perPlatform[dsName] = accounts.length;
+
       for (const acc of accounts) {
         await supabase.from('supermetrics_accounts').upsert(
           { ds_id: dsId, ds_name: dsName, account_id: acc.id, account_name: acc.name },
@@ -44,7 +47,12 @@ export async function POST() {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (!msg.includes('404')) errors.push(`${DS_NAMES[dsId]}: ${msg}`);
+      // Only skip true 404s (platform genuinely not available on this key)
+      if (msg.includes('HTTP 404')) {
+        perPlatform[DS_NAMES[dsId]] = 0;
+      } else {
+        errors.push(`${DS_NAMES[dsId]}: ${msg}`);
+      }
     }
   }
 
@@ -54,7 +62,12 @@ export async function POST() {
     .order('ds_name')
     .order('account_name');
 
-  return NextResponse.json({ accounts: accounts ?? [], fetched: totalFetched, errors: errors.length ? errors : undefined });
+  return NextResponse.json({
+    accounts: accounts ?? [],
+    fetched: totalFetched,
+    per_platform: perPlatform,
+    errors: errors.length ? errors : undefined,
+  });
 }
 
 export async function PATCH(req: Request) {

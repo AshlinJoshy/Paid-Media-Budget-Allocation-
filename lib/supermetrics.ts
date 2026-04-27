@@ -12,12 +12,37 @@ export interface SMRawCampaign {
   conversions?: string | number;
 }
 
-export async function smFetchAccounts(apiKey: string, dsId: string): Promise<SMRawAccount[]> {
+export interface SMAccountsResult {
+  accounts: SMRawAccount[];
+  rawResponse?: unknown; // for debugging
+}
+
+export async function smFetchAccounts(apiKey: string, dsId: string): Promise<SMAccountsResult> {
   const url = `${BASE}/meta/profiles?api_key=${encodeURIComponent(apiKey)}&ds_id=${encodeURIComponent(dsId)}`;
-  const res = await fetch(url, { next: { revalidate: 0 } });
-  if (!res.ok) throw new Error(`SM profiles error ${res.status}: ${await res.text()}`);
-  const json = await res.json();
-  return (json.data ?? []) as SMRawAccount[];
+  const res = await fetch(url, { cache: 'no-store' });
+
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`);
+  }
+
+  let json: unknown;
+  try { json = JSON.parse(text); } catch {
+    throw new Error(`Non-JSON response: ${text.slice(0, 200)}`);
+  }
+
+  // Handle multiple possible response shapes from Supermetrics
+  let accounts: SMRawAccount[] = [];
+  if (Array.isArray(json)) {
+    accounts = json as SMRawAccount[];
+  } else if (json && typeof json === 'object') {
+    const obj = json as Record<string, unknown>;
+    // Try common keys in order
+    const candidate = obj.data ?? obj.profiles ?? obj.accounts ?? obj.results ?? [];
+    accounts = Array.isArray(candidate) ? (candidate as SMRawAccount[]) : [];
+  }
+
+  return { accounts, rawResponse: json };
 }
 
 export async function smFetchCampaigns(
@@ -48,9 +73,9 @@ export async function smFetchCampaigns(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-    next: { revalidate: 0 },
+    cache: 'no-store',
   });
-  if (!res.ok) throw new Error(`SM query error ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`SM query error ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const json = await res.json();
   return (json.data ?? []) as SMRawCampaign[];
 }

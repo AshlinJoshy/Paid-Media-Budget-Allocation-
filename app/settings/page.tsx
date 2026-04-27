@@ -59,7 +59,17 @@ export default function SettingsPage() {
       } else {
         setAccounts(data.accounts ?? []);
         const count = (data.accounts ?? []).length;
-        flash(`Found ${count} account${count !== 1 ? 's' : ''}${data.errors?.length ? ` (some errors: ${data.errors[0]})` : ''}`);
+        const perPlatform = data.per_platform as Record<string, number> | undefined;
+        const summary = perPlatform
+          ? Object.entries(perPlatform).filter(([,n]) => n > 0).map(([p, n]) => `${p}: ${n}`).join(', ')
+          : '';
+        if (count === 0) {
+          const errDetail = data.errors?.length ? ` Errors: ${data.errors.join('; ')}` : '';
+          flash(`No accounts found. Check your API key has the right permissions.${errDetail}`, 'error');
+        } else {
+          flash(`Found ${count} account${count !== 1 ? 's' : ''}${summary ? ` (${summary})` : ''}`);
+        }
+        if (data.errors?.length) console.warn('Supermetrics account errors:', data.errors);
       }
     } catch {
       flash('Network error', 'error');
@@ -138,9 +148,21 @@ export default function SettingsPage() {
               {savingKey ? 'Saving…' : 'Save'}
             </button>
           </div>
-          <p className="text-xs text-gray-400">
-            Find your API key in the Supermetrics app under Account → API. The key is stored locally on your machine and never sent anywhere except Supermetrics.
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-gray-400">
+              Find your API key in Supermetrics → Account settings → API access.
+            </p>
+            {hasKey && (
+              <a
+                href="/api/supermetrics/debug?ds_id=FA"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-500 hover:underline shrink-0 ml-2"
+              >
+                Test API (raw response) ↗
+              </a>
+            )}
+          </div>
         </section>
 
         {/* Ad Accounts */}
