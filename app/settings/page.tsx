@@ -170,6 +170,14 @@ export default function SettingsPage() {
                 >
                   Test campaigns API ↗
                 </a>
+                <a
+                  href="/api/supermetrics/probe-ds"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-orange-500 hover:underline"
+                >
+                  Probe Google ds_ids ↗
+                </a>
               </div>
             )}
           </div>
