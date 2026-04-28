@@ -158,16 +158,18 @@ export default function BudgetTable() {
         body: JSON.stringify({}),
       });
       const data = await res.json();
-      if (!res.ok) setSyncMsg(`Error: ${data.error}`);
-      else {
-        setSyncMsg(`Synced ${data.campaigns_synced} campaigns, updated ${data.assignments_updated} rows`);
+      if (!res.ok) {
+        setSyncMsg(`Error: ${data.error}`);
+      } else {
+        const errNote = data.errors?.length ? ` (${data.errors.length} error${data.errors.length > 1 ? 's' : ''}: ${data.errors[0]})` : '';
+        setSyncMsg(`Synced ${data.campaigns_synced} campaigns, updated ${data.assignments_updated} rows${errNote}`);
         loadAll();
       }
     } catch {
       setSyncMsg('Network error during sync');
     } finally {
       setSyncing(false);
-      setTimeout(() => setSyncMsg(null), 4000);
+      setTimeout(() => setSyncMsg(null), 7000);
     }
   }
 
@@ -182,7 +184,7 @@ export default function BudgetTable() {
           </div>
           <div className="flex items-center gap-2">
             {syncMsg && (
-              <span className="text-xs text-green-300 bg-green-900/40 px-2 py-0.5 rounded">{syncMsg}</span>
+              <span className={`text-xs px-2 py-0.5 rounded max-w-xs truncate ${syncMsg.startsWith('Error') || syncMsg.includes('error') ? 'text-red-300 bg-red-900/40' : 'text-green-300 bg-green-900/40'}`} title={syncMsg}>{syncMsg}</span>
             )}
             <button
               onClick={syncAll}

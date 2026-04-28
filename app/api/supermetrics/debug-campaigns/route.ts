@@ -5,23 +5,25 @@ export async function GET() {
   const apiKey = await getSmApiKey();
   if (!apiKey) return NextResponse.json({ error: 'No API key saved.' }, { status: 400 });
 
-  // Get first selected account
+  // Get first selected Meta (FA) account — that's the licensed platform
   const { data: selected } = await supabase
     .from('supermetrics_accounts')
     .select('ds_id, account_id, account_name, ds_name')
     .eq('is_selected', true)
+    .eq('ds_id', 'FA')
     .limit(1)
     .single();
 
   if (!selected) {
-    // Fall back to any account
-    const { data: any } = await supabase
+    // Fall back to any Meta account (selected or not)
+    const { data: anyMeta } = await supabase
       .from('supermetrics_accounts')
       .select('ds_id, account_id, account_name, ds_name')
+      .eq('ds_id', 'FA')
       .limit(1)
       .single();
-    if (!any) return NextResponse.json({ error: 'No accounts in DB. Run Fetch Accounts first.' }, { status: 400 });
-    return NextResponse.json({ error: 'No accounts selected. Check Settings → Ad Accounts and enable at least one.', hint: `Unselected example: ${any.account_name} (${any.ds_id})` }, { status: 400 });
+    if (!anyMeta) return NextResponse.json({ error: 'No Meta Ads accounts in DB. Run Fetch Accounts first.' }, { status: 400 });
+    return NextResponse.json({ error: 'No Meta Ads accounts selected. Go to Settings → Ad Accounts and check some Meta Ads accounts.', hint: `Unselected example: ${anyMeta.account_name} (${anyMeta.account_id})` }, { status: 400 });
   }
 
   const fields = selected.ds_id === 'FA'

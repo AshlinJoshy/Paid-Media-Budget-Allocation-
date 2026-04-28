@@ -17,11 +17,11 @@ export const DS_TO_PLATFORM: Record<string, Platform> = {
   SC: 'snapchat',
 };
 
-// Only FA and AW are confirmed valid Supermetrics ds_ids.
+// FA is the only licensed ds_id on this account.
+// AW (Google Ads) returns LICENSE_DATA_SOURCE_NOT_AVAILABLE — add back if license is upgraded.
 // LinkedIn / TikTok / Snapchat ds_ids are unknown — add when confirmed.
 export const DS_NAMES: Record<string, string> = {
   FA: 'Meta Ads',
-  AW: 'Google Ads',
 };
 
 export function getPlatformFromSource(source: string): Platform {
