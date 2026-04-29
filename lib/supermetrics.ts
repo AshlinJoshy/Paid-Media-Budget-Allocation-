@@ -8,17 +8,12 @@ export interface SMRawCampaign {
   spend?: string | number;
   cost?: string | number;
   leads?: string | number;
-  website_leads?: string | number;
   conversions?: string | number;
 }
 
 export interface SMAccountsResult {
   accounts: SMRawAccount[];
   rawResponse?: unknown;
-}
-
-function authHeaders(apiKey: string) {
-  return { Authorization: `Bearer ${apiKey}` };
 }
 
 // Fetch all connected ad accounts via the Management API /query/accounts endpoint.
@@ -61,7 +56,8 @@ export async function smFetchCampaigns(
 ): Promise<SMRawCampaign[]> {
   let fields: string[];
   if (dsId === 'FA') {
-    fields = ['campaign_id', 'campaign_name', 'campaign_status', 'spend', 'leads', 'website_leads'];
+    // website_leads field is not available on all Meta accounts — use leads only
+    fields = ['campaign_id', 'campaign_name', 'campaign_status', 'spend', 'leads'];
   } else if (dsId === 'AW') {
     fields = ['campaign_id', 'campaign_name', 'campaign_status', 'cost', 'conversions'];
   } else {
@@ -92,7 +88,7 @@ export function parseCampaignRow(row: SMRawCampaign, dsId: string) {
   const spend = parseFloat(String(row.spend ?? row.cost ?? 0)) || 0;
   const leads =
     dsId === 'FA'
-      ? (parseInt(String(row.leads ?? 0)) || 0) + (parseInt(String(row.website_leads ?? 0)) || 0)
+      ? parseInt(String(row.leads ?? 0)) || 0
       : parseInt(String(row.conversions ?? 0)) || 0;
 
   return {
