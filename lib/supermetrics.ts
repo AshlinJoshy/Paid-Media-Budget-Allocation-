@@ -80,8 +80,21 @@ export async function smFetchCampaigns(
     cache: 'no-store',
   });
   if (!res.ok) throw new Error(`SM query error ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  const json = await res.json();
-  return (json.data ?? []) as SMRawCampaign[];
+  const json = await res.json() as Record<string, unknown>;
+  const rawData = (json.data ?? []) as unknown[];
+
+  // Supermetrics returns columnar format (array of arrays) when no_json_keys=true (account default).
+  // First row is the header row — skip it and map remaining rows to objects by field position.
+  if (rawData.length > 0 && Array.isArray(rawData[0])) {
+    const dataRows = rawData.slice(1) as unknown[][];
+    return dataRows.map((row) => {
+      const obj: Record<string, unknown> = {};
+      fields.forEach((f, i) => { obj[f] = row[i]; });
+      return obj as SMRawCampaign;
+    });
+  }
+
+  return rawData as SMRawCampaign[];
 }
 
 export function parseCampaignRow(row: SMRawCampaign, dsId: string) {
