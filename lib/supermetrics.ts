@@ -1,14 +1,22 @@
 const BASE = 'https://api.supermetrics.com/enterprise/v2';
 
 export interface SMRawAccount { id: string; name: string }
+
+// Field names are per-platform — populated by the columnar-to-object mapper in smFetchCampaigns.
 export interface SMRawCampaign {
-  campaign_id?: string;
-  campaign_name?: string;
-  campaign_status?: string;
-  spend?: string | number;
+  // Meta Ads (FA)
+  adcampaign_id?: string | number;
+  adcampaign_name?: string;
+  campaignstatus?: string;
   cost?: string | number;
-  leads?: string | number;
-  conversions?: string | number;
+  'onsite_conversion.lead_grouped'?: string | number;
+  offsite_conversions_fb_pixel_lead?: string | number;
+  // Google Ads (AW)
+  CampaignID?: string | number;
+  Campaignname?: string;
+  Campaignstatus?: string;
+  Cost?: string | number;
+  Conversions?: string | number;
 }
 
 export interface SMAccountsResult {
@@ -56,12 +64,18 @@ export async function smFetchCampaigns(
 ): Promise<SMRawCampaign[]> {
   let fields: string[];
   if (dsId === 'FA') {
-    // website_leads field is not available on all Meta accounts — use leads only
-    fields = ['campaign_id', 'campaign_name', 'campaign_status', 'spend', 'leads'];
+    fields = [
+      'adcampaign_id',
+      'adcampaign_name',
+      'campaignstatus',
+      'cost',
+      'onsite_conversion.lead_grouped',   // on-Facebook lead form leads
+      'offsite_conversions_fb_pixel_lead', // website pixel leads
+    ];
   } else if (dsId === 'AW') {
-    fields = ['campaign_id', 'campaign_name', 'campaign_status', 'cost', 'conversions'];
+    fields = ['CampaignID', 'Campaignname', 'Campaignstatus', 'Cost', 'Conversions'];
   } else {
-    fields = ['campaign_id', 'campaign_name', 'campaign_status', 'cost', 'conversions'];
+    fields = ['CampaignID', 'Campaignname', 'Campaignstatus', 'Cost', 'Conversions'];
   }
 
   const body = {
@@ -98,18 +112,23 @@ export async function smFetchCampaigns(
 }
 
 export function parseCampaignRow(row: SMRawCampaign, dsId: string) {
-  const spend = parseFloat(String(row.spend ?? row.cost ?? 0)) || 0;
-  const leads =
-    dsId === 'FA'
-      ? parseInt(String(row.leads ?? 0)) || 0
-      : parseInt(String(row.conversions ?? 0)) || 0;
+  const spend = parseFloat(String(row.cost ?? row.Cost ?? 0)) || 0;
+
+  let leads: number;
+  if (dsId === 'FA') {
+    const formLeads = parseInt(String(row['onsite_conversion.lead_grouped'] ?? 0)) || 0;
+    const pixelLeads = parseInt(String(row.offsite_conversions_fb_pixel_lead ?? 0)) || 0;
+    leads = formLeads + pixelLeads;
+  } else {
+    leads = parseInt(String(row.Conversions ?? 0)) || 0;
+  }
 
   return {
-    campaign_id: String(row.campaign_id ?? ''),
-    campaign_name: String(row.campaign_name ?? ''),
-    status: String(row.campaign_status ?? 'ENABLED').toUpperCase(),
+    campaign_id: String(row.adcampaign_id ?? row.CampaignID ?? ''),
+    campaign_name: String(row.adcampaign_name ?? row.Campaignname ?? ''),
+    status: String(row.campaignstatus ?? row.Campaignstatus ?? 'ENABLED').toUpperCase(),
     spend,
     leads,
-    conversions: parseInt(String(row.conversions ?? leads)) || 0,
+    conversions: parseInt(String(row.Conversions ?? leads)) || 0,
   };
 }

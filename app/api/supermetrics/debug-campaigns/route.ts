@@ -27,8 +27,8 @@ export async function GET() {
   }
 
   const fields = selected.ds_id === 'FA'
-    ? ['campaign_id', 'campaign_name', 'campaign_status', 'spend', 'leads']
-    : ['campaign_id', 'campaign_name', 'campaign_status', 'cost', 'conversions'];
+    ? ['adcampaign_id', 'adcampaign_name', 'campaignstatus', 'cost', 'onsite_conversion.lead_grouped', 'offsite_conversions_fb_pixel_lead']
+    : ['CampaignID', 'Campaignname', 'Campaignstatus', 'Cost', 'Conversions'];
 
   const body = {
     api_key: apiKey,
