@@ -17,8 +17,7 @@ export const DS_TO_PLATFORM: Record<string, Platform> = {
   SC: 'snapchat',
 };
 
-// FA confirmed working. AW returns LICENSE_DATA_SOURCE_NOT_AVAILABLE on data queries
-// — may need a different ds_id for Google Ads data; see /api/supermetrics/probe-ds
+// Both FA and AW confirmed working. Wrong field IDs were causing the AW license error.
 export const DS_NAMES: Record<string, string> = {
   FA: 'Meta Ads',
   AW: 'Google Ads',

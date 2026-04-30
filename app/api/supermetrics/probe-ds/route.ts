@@ -33,12 +33,15 @@ export async function GET() {
   const results: Record<string, { status: number; error?: string; rows?: number }> = {};
 
   for (const dsId of GOOGLE_ADS_CANDIDATES) {
+    const fields = dsId === 'FA'
+      ? ['adcampaign_id', 'adcampaign_name', 'campaignstatus', 'cost']
+      : ['CampaignID', 'Campaignname', 'Campaignstatus', 'Cost'];
     const body = {
       api_key: apiKey,
       ds_id: dsId,
       ds_accounts: [accountId],
       date_range_type: 'this_month',
-      fields: ['campaign_id', 'campaign_name', 'campaign_status', 'cost'],
+      fields,
       max_rows: 3,
     };
 
