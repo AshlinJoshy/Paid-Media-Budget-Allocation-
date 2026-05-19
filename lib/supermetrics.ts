@@ -18,19 +18,24 @@ export interface SMRawAccount {
   group?: string;
 }
 
-export interface SMRawCampaign {
-  campaign_id?: string;
-  campaign_name?: string;
-  campaign_status?: string;
-  spend?: string | number;
-  cost?: string | number;
-  leads?: string | number;
-  website_leads?: string | number;
-  conversions?: string | number;
+export type SMRawCampaign = Record<string, string | number | undefined>;
+
+export interface ParsedCampaign {
+  campaign_id: string;
+  campaign_name: string;
+  status: string;
+  spend: number;
+  leads: number;
+  conversions: number;
 }
 
 function authHeaders(apiKey: string): HeadersInit {
   return { Authorization: `Bearer ${apiKey}` };
+}
+
+function num(v: unknown): number {
+  const n = parseFloat(String(v ?? 0));
+  return Number.isFinite(n) ? n : 0;
 }
 
 export async function smFetchLogins(apiKey: string): Promise<SMLogin[]> {
@@ -53,26 +58,69 @@ export async function smFetchLoginAccounts(apiKey: string, loginId: string): Pro
   return (json.data ?? []) as SMRawAccount[];
 }
 
+interface DsFieldSpec {
+  fields: string[];
+  parse: (row: SMRawCampaign) => ParsedCampaign;
+}
+
+const DS_SPECS: Record<string, DsFieldSpec> = {
+  FA: {
+    fields: [
+      'adcampaign_id',
+      'adcampaign_name',
+      'campaignstatus',
+      'cost',
+      'offsite_conversions_fb_pixel_lead',
+      'onsite_conversion.lead_grouped',
+    ],
+    parse: (row) => {
+      const websiteLeads = num(row['offsite_conversions_fb_pixel_lead']);
+      const onFbLeads = num(row['onsite_conversion.lead_grouped']);
+      const leads = websiteLeads + onFbLeads;
+      return {
+        campaign_id: String(row['adcampaign_id'] ?? ''),
+        campaign_name: String(row['adcampaign_name'] ?? ''),
+        status: String(row['campaignstatus'] ?? 'ENABLED').toUpperCase(),
+        spend: num(row['cost']),
+        leads,
+        conversions: leads,
+      };
+    },
+  },
+  AW: {
+    fields: ['CampaignID', 'Campaignname', 'Campaignstatus', 'Cost', 'Conversions'],
+    parse: (row) => {
+      const conversions = num(row['Conversions']);
+      return {
+        campaign_id: String(row['CampaignID'] ?? ''),
+        campaign_name: String(row['Campaignname'] ?? ''),
+        status: String(row['Campaignstatus'] ?? 'ENABLED').toUpperCase(),
+        spend: num(row['Cost']),
+        leads: conversions,
+        conversions,
+      };
+    },
+  },
+};
+
+export function dsSpec(dsId: string): DsFieldSpec | null {
+  return DS_SPECS[dsId] ?? null;
+}
+
 export async function smFetchCampaigns(
   apiKey: string,
   dsId: string,
   accountIds: string[],
   dateRangeType = 'this_month'
 ): Promise<SMRawCampaign[]> {
-  let fields: string[];
-  if (dsId === 'FA') {
-    fields = ['campaign_id', 'campaign_name', 'campaign_status', 'spend', 'leads', 'website_leads'];
-  } else if (dsId === 'AW') {
-    fields = ['campaign_id', 'campaign_name', 'campaign_status', 'cost', 'conversions'];
-  } else {
-    fields = ['campaign_id', 'campaign_name', 'campaign_status', 'cost', 'conversions'];
-  }
+  const spec = DS_SPECS[dsId];
+  if (!spec) throw new Error(`Unsupported ds_id: ${dsId}`);
 
   const body = {
     ds_id: dsId,
     ds_accounts: accountIds,
     date_range_type: dateRangeType,
-    fields,
+    fields: spec.fields,
     max_rows: 10000,
   };
 
@@ -87,19 +135,17 @@ export async function smFetchCampaigns(
   return (json.data ?? []) as SMRawCampaign[];
 }
 
-export function parseCampaignRow(row: SMRawCampaign, dsId: string) {
-  const spend = parseFloat(String(row.spend ?? row.cost ?? 0)) || 0;
-  const leads =
-    dsId === 'FA'
-      ? (parseInt(String(row.leads ?? 0)) || 0) + (parseInt(String(row.website_leads ?? 0)) || 0)
-      : parseInt(String(row.conversions ?? 0)) || 0;
-
-  return {
-    campaign_id: String(row.campaign_id ?? ''),
-    campaign_name: String(row.campaign_name ?? ''),
-    status: String(row.campaign_status ?? 'ENABLED').toUpperCase(),
-    spend,
-    leads,
-    conversions: parseInt(String(row.conversions ?? leads)) || 0,
-  };
+export function parseCampaignRow(row: SMRawCampaign, dsId: string): ParsedCampaign {
+  const spec = DS_SPECS[dsId];
+  if (!spec) {
+    return {
+      campaign_id: '',
+      campaign_name: '',
+      status: 'ENABLED',
+      spend: 0,
+      leads: 0,
+      conversions: 0,
+    };
+  }
+  return spec.parse(row);
 }

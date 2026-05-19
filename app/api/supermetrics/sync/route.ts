@@ -44,10 +44,16 @@ export async function POST(req: Request) {
       try {
         const rows = await smFetchCampaigns(keyRow.value, dsId, [accountId], dateRange);
         const platform = DS_TO_PLATFORM[dsId] ?? 'unknown';
+        console.log(`[SM sync] ${dsId}/${accountId}: API returned ${rows.length} rows`);
 
+        let kept = 0;
+        let skipped = 0;
         for (const row of rows) {
           const parsed = parseCampaignRow(row, dsId);
-          if (!parsed.campaign_id) continue;
+          if (!parsed.campaign_id) {
+            skipped++;
+            continue;
+          }
 
           await supabase.from('cached_campaigns').upsert(
             {
@@ -64,10 +70,20 @@ export async function POST(req: Request) {
             },
             { onConflict: 'ds_id,account_id,campaign_id' }
           );
+          kept++;
           totalCampaigns++;
         }
+        if (skipped > 0) {
+          errors.push(`${dsId}/${accountId}: skipped ${skipped} row(s) with missing campaign_id`);
+        }
+        if (rows.length === 0) {
+          errors.push(`${dsId}/${accountId}: API returned 0 rows for ${dateRange}`);
+        }
+        console.log(`[SM sync] ${dsId}/${accountId}: kept=${kept} skipped=${skipped}`);
       } catch (err) {
-        errors.push(`${dsId}/${accountId}: ${err instanceof Error ? err.message : String(err)}`);
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[SM sync] ${dsId}/${accountId} failed: ${msg}`);
+        errors.push(`${dsId}/${accountId}: ${msg}`);
       }
     }
   }

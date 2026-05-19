@@ -16,6 +16,7 @@ export default function BudgetTable() {
   const [activeDrag, setActiveDrag] = useState<CachedCampaign | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [syncErrors, setSyncErrors] = useState<string[] | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -151,6 +152,7 @@ export default function BudgetTable() {
   async function syncAll() {
     setSyncing(true);
     setSyncMsg(null);
+    setSyncErrors(null);
     try {
       const res = await fetch('/api/supermetrics/sync', {
         method: 'POST',
@@ -158,16 +160,20 @@ export default function BudgetTable() {
         body: JSON.stringify({}),
       });
       const data = await res.json();
-      if (!res.ok) setSyncMsg(`Error: ${data.error}`);
-      else {
+      if (!res.ok) {
+        setSyncMsg(`Error: ${data.error}`);
+      } else {
         setSyncMsg(`Synced ${data.campaigns_synced} campaigns, updated ${data.assignments_updated} rows`);
+        if (Array.isArray(data.errors) && data.errors.length > 0) {
+          setSyncErrors(data.errors);
+        }
         loadAll();
       }
     } catch {
       setSyncMsg('Network error during sync');
     } finally {
       setSyncing(false);
-      setTimeout(() => setSyncMsg(null), 4000);
+      setTimeout(() => setSyncMsg(null), 6000);
     }
   }
 
@@ -204,6 +210,26 @@ export default function BudgetTable() {
             </a>
           </div>
         </header>
+
+        {/* Sync error banner */}
+        {syncErrors && syncErrors.length > 0 && (
+          <div className="px-4 py-2 bg-yellow-50 border-b border-yellow-200 flex items-start gap-2">
+            <div className="flex-1 text-xs text-yellow-900">
+              <p className="font-semibold mb-1">Sync warnings ({syncErrors.length}):</p>
+              <ul className="space-y-0.5 list-disc list-inside">
+                {syncErrors.map((e, i) => (
+                  <li key={i} className="break-words">{e}</li>
+                ))}
+              </ul>
+            </div>
+            <button
+              onClick={() => setSyncErrors(null)}
+              className="text-yellow-700 hover:text-yellow-900 text-xs underline shrink-0"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Body */}
         <div className="flex flex-1 min-h-0">
