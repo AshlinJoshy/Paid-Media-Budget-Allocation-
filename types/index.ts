@@ -12,17 +12,17 @@ export const PLATFORM_COLORS: Record<string, { row: string; badge: string; accen
 export const DS_TO_PLATFORM: Record<string, Platform> = {
   FA: 'meta',
   AW: 'google',
-  LI: 'linkedin',
-  TT: 'tiktok',
-  SC: 'snapchat',
+  LIA: 'linkedin',
+  TIK: 'tiktok',
+  SCM: 'snapchat',
 };
 
 export const DS_NAMES: Record<string, string> = {
   FA: 'Meta Ads',
   AW: 'Google Ads',
-  LI: 'LinkedIn Ads',
-  TT: 'TikTok Ads',
-  SC: 'Snapchat Ads',
+  LIA: 'LinkedIn Ads',
+  TIK: 'TikTok Ads',
+  SCM: 'Snapchat Ads',
 };
 
 export function getPlatformFromSource(source: string): Platform {

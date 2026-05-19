@@ -1,6 +1,20 @@
 const BASE = 'https://api.supermetrics.com/enterprise/v2';
 
-export interface SMRawAccount { id: string; name: string }
+export interface SMLogin {
+  id: string;
+  ds_id: string;
+  ds_name?: string;
+  name?: string;
+  status?: string;
+}
+
+export interface SMRawAccount {
+  account_id: string;
+  name?: string;
+  account_name?: string;
+  group?: string;
+}
+
 export interface SMRawCampaign {
   campaign_id?: string;
   campaign_name?: string;
@@ -12,10 +26,26 @@ export interface SMRawCampaign {
   conversions?: string | number;
 }
 
-export async function smFetchAccounts(apiKey: string, dsId: string): Promise<SMRawAccount[]> {
-  const url = `${BASE}/meta/profiles?api_key=${encodeURIComponent(apiKey)}&ds_id=${encodeURIComponent(dsId)}`;
-  const res = await fetch(url, { next: { revalidate: 0 } });
-  if (!res.ok) throw new Error(`SM profiles error ${res.status}: ${await res.text()}`);
+function authHeaders(apiKey: string): HeadersInit {
+  return { Authorization: `Bearer ${apiKey}` };
+}
+
+export async function smFetchLogins(apiKey: string): Promise<SMLogin[]> {
+  const res = await fetch(`${BASE}/ds/logins`, {
+    headers: authHeaders(apiKey),
+    next: { revalidate: 0 },
+  });
+  if (!res.ok) throw new Error(`SM logins error ${res.status}: ${await res.text()}`);
+  const json = await res.json();
+  return (json.data ?? []) as SMLogin[];
+}
+
+export async function smFetchLoginAccounts(apiKey: string, loginId: string): Promise<SMRawAccount[]> {
+  const res = await fetch(`${BASE}/ds/login/${encodeURIComponent(loginId)}/accounts?limit=1000`, {
+    headers: authHeaders(apiKey),
+    next: { revalidate: 0 },
+  });
+  if (!res.ok) throw new Error(`SM login-accounts error ${res.status}: ${await res.text()}`);
   const json = await res.json();
   return (json.data ?? []) as SMRawAccount[];
 }
@@ -36,7 +66,6 @@ export async function smFetchCampaigns(
   }
 
   const body = {
-    api_key: apiKey,
     ds_id: dsId,
     ds_accounts: accountIds,
     date_range_type: dateRangeType,
@@ -46,7 +75,7 @@ export async function smFetchCampaigns(
 
   const res = await fetch(`${BASE}/query/data/json`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders(apiKey) },
     body: JSON.stringify(body),
     next: { revalidate: 0 },
   });

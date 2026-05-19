@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Save, RefreshCw, Check, Key, Database } from 'lucide-react';
+import { ArrowLeft, Save, RefreshCw, Check, Key, Database, X } from 'lucide-react';
 import { SupermetricsAccount, DS_NAMES } from '@/types';
 import PlatformBadge from '@/components/PlatformBadge';
 
@@ -14,7 +14,9 @@ export default function SettingsPage() {
 
   const flash = (text: string, type: 'success' | 'error' = 'success') => {
     setMsg({ text, type });
-    setTimeout(() => setMsg(null), 3500);
+    if (type === 'success') {
+      setTimeout(() => setMsg(null), 3500);
+    }
   };
 
   const loadAccounts = useCallback(async () => {
@@ -90,10 +92,10 @@ export default function SettingsPage() {
     return acc;
   }, {});
 
-  const dsOrder = ['FA', 'AW', 'LI', 'TT', 'SC'];
+  const dsOrder = ['FA', 'AW', 'LIA', 'TIK', 'SCM'];
   const sortedDs = [...new Set([...dsOrder, ...Object.keys(groupedAccounts)])].filter((ds) => groupedAccounts[ds]);
 
-  const platformMap: Record<string, string> = { FA: 'meta', AW: 'google', LI: 'linkedin', TT: 'tiktok', SC: 'snapchat' };
+  const platformMap: Record<string, string> = { FA: 'meta', AW: 'google', LIA: 'linkedin', TIK: 'tiktok', SCM: 'snapchat' };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -108,8 +110,15 @@ export default function SettingsPage() {
       <div className="max-w-2xl mx-auto py-8 px-4 space-y-8">
         {/* Flash message */}
         {msg && (
-          <div className={`px-4 py-2.5 rounded text-sm ${msg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-            {msg.text}
+          <div className={`flex items-start gap-2 px-4 py-2.5 rounded text-sm ${msg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+            <div className="flex-1 break-words whitespace-pre-wrap select-text">{msg.text}</div>
+            <button
+              onClick={() => setMsg(null)}
+              className={`p-0.5 rounded hover:bg-black/5 shrink-0 ${msg.type === 'success' ? 'text-green-700' : 'text-red-700'}`}
+              title="Dismiss"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
         )}
 
