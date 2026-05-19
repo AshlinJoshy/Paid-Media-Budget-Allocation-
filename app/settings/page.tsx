@@ -34,16 +34,26 @@ export default function SettingsPage() {
     if (!apiKey.trim()) return;
     setSavingKey(true);
     try {
-      await fetch('/api/settings', {
+      const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ supermetrics_api_key: apiKey.trim() }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        flash(data.error || `Save failed (HTTP ${res.status})`, 'error');
+        return;
+      }
+      const verify = await fetch('/api/settings').then((r) => r.json()).catch(() => ({}));
+      if (verify.has_api_key !== 'true') {
+        flash('Save returned OK but key not found in database. Check Supabase RLS / env vars.', 'error');
+        return;
+      }
       setHasKey(true);
       setApiKey('');
       flash('API key saved');
-    } catch {
-      flash('Failed to save API key', 'error');
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Failed to save API key', 'error');
     } finally {
       setSavingKey(false);
     }
@@ -70,11 +80,16 @@ export default function SettingsPage() {
 
   async function toggleAccount(id: string, current: boolean) {
     setAccounts((prev) => prev.map((a) => a.id === id ? { ...a, is_selected: !current } : a));
-    await fetch('/api/supermetrics/accounts', {
+    const res = await fetch('/api/supermetrics/accounts', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, is_selected: !current }),
     });
+    if (!res.ok) {
+      setAccounts((prev) => prev.map((a) => a.id === id ? { ...a, is_selected: current } : a));
+      const data = await res.json().catch(() => ({}));
+      flash(data.error || `Toggle failed (HTTP ${res.status})`, 'error');
+    }
   }
 
   const groupedAccounts = accounts.reduce<Record<string, SupermetricsAccount[]>>((acc, a) => {
