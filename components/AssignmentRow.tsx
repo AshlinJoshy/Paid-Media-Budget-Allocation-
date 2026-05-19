@@ -46,7 +46,7 @@ export default function AssignmentRow({ row, options, onUpdate, onDelete, onAddO
 
   return (
     <tr
-      className={`${colors.row} ${colors.accent} border-b border-gray-100 transition-colors`}
+      className={`${colors.row} ${colors.accent} border-b border-gray-100 transition-colors duration-150 hover:brightness-[0.98]`}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
     >
@@ -139,7 +139,7 @@ export default function AssignmentRow({ row, options, onUpdate, onDelete, onAddO
       <td className="px-2 py-1.5 w-10">
         <button
           onClick={() => onDelete(row.id)}
-          className={`p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-opacity ${hovering ? 'opacity-100' : 'opacity-0'}`}
+          className={`p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all duration-150 ${hovering ? 'opacity-100' : 'opacity-0'}`}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>

@@ -45,7 +45,7 @@ export default function CampaignGroup({
       {/* Group header */}
       <tr
         ref={setNodeRef}
-        className={`bg-gray-100 border-b-2 border-gray-300 transition-colors ${isOver ? 'bg-blue-50 ring-2 ring-blue-300' : ''}`}
+        className={`bg-gray-100 border-b-2 transition-all duration-200 ease-out ${isOver ? 'bg-blue-50 border-blue-400 shadow-[inset_0_0_0_2px_rgb(96,165,250)]' : 'border-gray-300'}`}
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
       >
@@ -100,16 +100,20 @@ export default function CampaignGroup({
         {/* Pad remaining columns */}
         <td colSpan={3} className="px-2 py-2">
           <div className="flex items-center gap-1">
-            {isOver && <span className="text-xs text-blue-600 font-medium">Drop here →</span>}
+            <span
+              className={`text-xs text-blue-600 font-medium transition-opacity duration-200 ${isOver ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            >
+              Drop here →
+            </span>
             <button
               onClick={() => onAddAssignment(campaign.id)}
-              className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded border border-blue-200"
+              className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded border border-blue-200 transition-colors duration-150"
             >
               <Plus className="h-3 w-3" /> Add row
             </button>
             <button
               onClick={() => onDeleteCampaign(campaign.id)}
-              className={`p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-opacity ${hovering ? 'opacity-100' : 'opacity-0'}`}
+              className={`p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all duration-150 ${hovering ? 'opacity-100' : 'opacity-0'}`}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>

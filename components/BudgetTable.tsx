@@ -1,6 +1,6 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
-import { DndContext, DragEndEvent, DragOverlay, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { DndContext, DragEndEvent, DragOverlay, useSensor, useSensors, PointerSensor, defaultDropAnimationSideEffects, DropAnimation } from '@dnd-kit/core';
 import { Plus, Settings, RefreshCw, LayoutGrid, PanelRightOpen } from 'lucide-react';
 import CampaignGroup from './CampaignGroup';
 import CampaignPanel from './CampaignPanel';
@@ -17,7 +17,25 @@ export default function BudgetTable() {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  const dropAnimation: DropAnimation = {
+    duration: 220,
+    easing: 'cubic-bezier(0.2, 0, 0, 1)',
+    sideEffects: defaultDropAnimationSideEffects({
+      styles: { active: { opacity: '0.4' } },
+    }),
+  };
+
+  const assignedCampaignIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of campaigns) {
+      for (const a of c.assignments ?? []) {
+        if (a.supermetrics_campaign_id) ids.add(a.supermetrics_campaign_id);
+      }
+    }
+    return ids;
+  }, [campaigns]);
 
   const loadAll = useCallback(async () => {
     const [campRes, optRes] = await Promise.all([
@@ -282,14 +300,22 @@ export default function BudgetTable() {
           </div>
 
           {/* Campaign panel */}
-          {showPanel && <CampaignPanel onClose={() => setShowPanel(false)} />}
+          {showPanel && (
+            <CampaignPanel
+              onClose={() => setShowPanel(false)}
+              assignedCampaignIds={assignedCampaignIds}
+            />
+          )}
         </div>
       </div>
 
       {/* Drag overlay */}
-      <DragOverlay>
+      <DragOverlay dropAnimation={dropAnimation}>
         {activeDrag && (
-          <div className="bg-white border border-gray-300 shadow-xl rounded px-2 py-1.5 text-xs max-w-[200px]">
+          <div
+            className="bg-white border border-gray-300 shadow-2xl rounded-md px-2.5 py-2 text-xs max-w-[220px] cursor-grabbing"
+            style={{ transform: 'rotate(-1.5deg) scale(1.02)' }}
+          >
             <PlatformBadge platform={activeDrag.platform} />
             <p className="mt-1 text-gray-800 truncate">{activeDrag.campaign_name}</p>
           </div>
