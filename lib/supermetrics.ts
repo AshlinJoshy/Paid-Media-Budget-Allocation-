@@ -1,11 +1,14 @@
 const BASE = 'https://api.supermetrics.com/enterprise/v2';
 
 export interface SMLogin {
-  id: string;
-  ds_id: string;
-  ds_name?: string;
-  name?: string;
-  status?: string;
+  login_id: string;
+  display_name?: string;
+  username?: string;
+  revoked_time?: string | null;
+  ds_info?: {
+    ds_id?: string;
+    name?: string;
+  };
 }
 
 export interface SMRawAccount {

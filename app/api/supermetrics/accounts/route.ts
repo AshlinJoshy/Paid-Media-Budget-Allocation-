@@ -31,6 +31,8 @@ export async function POST() {
   const errors: string[] = [];
   let totalFetched = 0;
 
+  const ALLOWED_DS_IDS = new Set(['FA', 'AW']);
+
   let logins;
   try {
     logins = await smFetchLogins(apiKey);
@@ -42,11 +44,20 @@ export async function POST() {
   }
 
   for (const login of logins) {
-    const dsId = login.ds_id;
-    const dsName = login.ds_name ?? DS_NAMES[dsId] ?? dsId;
+    const dsId = login.ds_info?.ds_id;
+    if (!dsId || !ALLOWED_DS_IDS.has(dsId)) continue;
+    if (login.revoked_time) continue;
+
+    const dsName = login.ds_info?.name ?? DS_NAMES[dsId] ?? dsId;
+    const loginId = login.login_id;
+    if (!loginId) {
+      errors.push(`${dsName}: missing login_id on login record`);
+      continue;
+    }
+
     try {
-      const accounts = await smFetchLoginAccounts(apiKey, login.id);
-      console.log(`[SM accounts] login ${login.id} (${dsName}): ${accounts.length} accounts`);
+      const accounts = await smFetchLoginAccounts(apiKey, loginId);
+      console.log(`[SM accounts] login ${loginId} (${dsName}): ${accounts.length} accounts`);
       for (const acc of accounts) {
         const accountId = acc.account_id;
         const accountName = acc.name ?? acc.account_name ?? accountId;
@@ -59,8 +70,8 @@ export async function POST() {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[SM accounts] ${dsName} login ${login.id} failed: ${msg}`);
-      errors.push(`${dsName} (${login.id}): ${msg}`);
+      console.error(`[SM accounts] ${dsName} login ${loginId} failed: ${msg}`);
+      errors.push(`${dsName} (${loginId}): ${msg}`);
     }
   }
 
