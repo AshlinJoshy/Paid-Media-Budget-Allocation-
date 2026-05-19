@@ -80,10 +80,15 @@ export default function CampaignPanel({ onClose }: Props) {
     try {
       const res = await fetch('/api/supermetrics/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
       const data = await res.json();
-      if (!res.ok) setSyncError(data.error || 'Sync failed');
-      else {
+      if (!res.ok) {
+        setSyncError(data.error || 'Sync failed');
+      } else {
         setLastSync(new Date().toISOString());
         load(search, dsFilter);
+        const issues: string[] = [...(data.errors ?? []), ...(data.warnings ?? [])];
+        if (issues.length) {
+          setSyncError(`Sync warnings (${issues.length}):\n${issues.join('\n')}`);
+        }
       }
     } catch (e) {
       setSyncError('Network error');
@@ -141,7 +146,7 @@ export default function CampaignPanel({ onClose }: Props) {
 
       {/* Error */}
       {syncError && (
-        <div className="mx-2 mt-2 px-2 py-1.5 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+        <div className="mx-2 mt-2 px-2 py-1.5 bg-red-50 border border-red-200 rounded text-xs text-red-700 whitespace-pre-line">
           {syncError}
         </div>
       )}

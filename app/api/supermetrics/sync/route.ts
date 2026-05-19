@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { smFetchCampaigns, parseCampaignRow } from '@/lib/supermetrics';
+import { smFetchCampaigns } from '@/lib/supermetrics';
 import { DS_TO_PLATFORM } from '@/types';
 
 export async function POST(req: Request) {
@@ -37,6 +37,7 @@ export async function POST(req: Request) {
   }
 
   const errors: string[] = [];
+  const warnings: string[] = [];
   let totalCampaigns = 0;
 
   for (const [dsId, accountIds] of Object.entries(byDs)) {
@@ -45,26 +46,33 @@ export async function POST(req: Request) {
         const rows = await smFetchCampaigns(keyRow.value, dsId, [accountId], dateRange);
         const platform = DS_TO_PLATFORM[dsId] ?? 'unknown';
 
+        let skipped = 0;
         for (const row of rows) {
-          const parsed = parseCampaignRow(row, dsId);
-          if (!parsed.campaign_id) continue;
+          if (!row.campaign_id) {
+            skipped++;
+            continue;
+          }
 
           await supabase.from('cached_campaigns').upsert(
             {
               ds_id: dsId,
               account_id: accountId,
-              campaign_id: parsed.campaign_id,
-              campaign_name: parsed.campaign_name,
-              status: parsed.status,
+              campaign_id: row.campaign_id,
+              campaign_name: row.campaign_name,
+              status: row.status,
               platform,
-              spend: parsed.spend,
-              leads: parsed.leads,
-              conversions: parsed.conversions,
+              spend: row.spend,
+              leads: row.leads,
+              conversions: row.conversions,
               last_updated: new Date().toISOString(),
             },
             { onConflict: 'ds_id,account_id,campaign_id' }
           );
           totalCampaigns++;
+        }
+
+        if (skipped > 0) {
+          warnings.push(`${dsId}/${accountId}: skipped ${skipped} row(s) with missing campaign_id`);
         }
       } catch (err) {
         errors.push(`${dsId}/${accountId}: ${err instanceof Error ? err.message : String(err)}`);
@@ -107,5 +115,6 @@ export async function POST(req: Request) {
     campaigns_synced: totalCampaigns,
     assignments_updated: assignmentsUpdated,
     errors: errors.length ? errors : undefined,
+    warnings: warnings.length ? warnings : undefined,
   });
 }
