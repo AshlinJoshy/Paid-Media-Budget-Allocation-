@@ -59,7 +59,14 @@ export default function SettingsPage() {
       } else {
         setAccounts(data.accounts ?? []);
         const count = (data.accounts ?? []).length;
-        flash(`Found ${count} account${count !== 1 ? 's' : ''}${data.errors?.length ? ` (some errors: ${data.errors[0]})` : ''}`);
+        const errs: string[] = data.errors ?? [];
+        if (count === 0 && errs.length > 0) {
+          flash(`Found 0 accounts. Errors: ${errs.join(' | ')}`, 'error');
+        } else if (errs.length > 0) {
+          flash(`Found ${count} account${count !== 1 ? 's' : ''} (errors: ${errs.join(' | ')})`, 'error');
+        } else {
+          flash(`Found ${count} account${count !== 1 ? 's' : ''}`);
+        }
       }
     } catch {
       flash('Network error', 'error');

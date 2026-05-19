@@ -35,6 +35,7 @@ export async function POST() {
     try {
       const accounts = await smFetchAccounts(apiKey, dsId);
       const dsName = DS_NAMES[dsId];
+      console.log(`[SM accounts] ${dsName} (${dsId}): ${accounts.length} accounts`);
       for (const acc of accounts) {
         await supabase.from('supermetrics_accounts').upsert(
           { ds_id: dsId, ds_name: dsName, account_id: acc.id, account_name: acc.name },
@@ -44,7 +45,8 @@ export async function POST() {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (!msg.includes('404')) errors.push(`${DS_NAMES[dsId]}: ${msg}`);
+      console.error(`[SM accounts] ${DS_NAMES[dsId]} (${dsId}) failed: ${msg}`);
+      errors.push(`${DS_NAMES[dsId]}: ${msg}`);
     }
   }
 
