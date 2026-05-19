@@ -51,12 +51,30 @@ const MAPPINGS: Record<string, FieldMapping> = {
   },
 };
 
+// Normalize platform status strings so the UI's "ENABLED" check works for both
+// Meta ("ACTIVE") and Google ("enabled").
+const ACTIVE_STATUSES = new Set(['ENABLED', 'ACTIVE']);
+
 export async function smFetchAccounts(apiKey: string, dsId: string): Promise<SMRawAccount[]> {
   const url = `${BASE}/meta/profiles?api_key=${encodeURIComponent(apiKey)}&ds_id=${encodeURIComponent(dsId)}`;
   const res = await fetch(url, { next: { revalidate: 0 } });
   if (!res.ok) throw new Error(`SM profiles error ${res.status}: ${await res.text()}`);
   const json = await res.json();
   return (json.data ?? []) as SMRawAccount[];
+}
+
+async function postWithRetry(url: string, body: unknown, retries = 1): Promise<Response> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      next: { revalidate: 0 },
+    });
+    if (res.ok || res.status < 500 || attempt === retries) return res;
+    await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+  }
+  throw new Error('postWithRetry exhausted');
 }
 
 export async function smFetchCampaigns(
@@ -79,34 +97,33 @@ export async function smFetchCampaigns(
     max_rows: 10000,
   };
 
-  const res = await fetch(`${BASE}/query/data/json`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    next: { revalidate: 0 },
-  });
+  const res = await postWithRetry(`${BASE}/query/data/json`, body);
   if (!res.ok) throw new Error(`SM query error ${res.status}: ${await res.text()}`);
   const json = await res.json();
 
   const rawData: unknown[] = json.data ?? [];
   if (rawData.length === 0) return [];
 
-  // Supermetrics v2 /query/data/json returns array-of-arrays (positional).
-  // Use meta.query.fields to map positional values back to field IDs.
-  const metaFieldsRaw = json.meta?.query?.fields;
-  const metaFields: string[] = Array.isArray(metaFieldsRaw) && metaFieldsRaw.length
-    ? metaFieldsRaw
-        .map((f: unknown) => typeof f === 'string' ? f : (f as { id?: string })?.id ?? '')
-        .filter(Boolean)
-    : mapping.request;
+  // Supermetrics v2 /query/data/json returns array-of-arrays in the order of fields
+  // requested. The first row is a header row of display names (e.g. "Campaign ID")
+  // and rows 1..n are real data. Map positionally using the field IDs we sent, then
+  // filter out the header.
+  const positional: unknown[][] = Array.isArray(rawData[0])
+    ? (rawData as unknown[][])
+    : (rawData as Record<string, unknown>[]).map((r) => mapping.request.map((f) => r[f]));
 
-  const rows: Record<string, unknown>[] = Array.isArray(rawData[0])
-    ? (rawData as unknown[][]).map((row) => {
-        const obj: Record<string, unknown> = {};
-        metaFields.forEach((name, i) => { obj[name] = row[i]; });
-        return obj;
-      })
-    : (rawData as Record<string, unknown>[]);
+  const rows = positional
+    .map((row) => {
+      const obj: Record<string, unknown> = {};
+      mapping.request.forEach((name, i) => { obj[name] = row[i]; });
+      return obj;
+    })
+    .filter((row) => {
+      const id = String(row[mapping.campaign_id] ?? '').trim();
+      // Drop empty IDs and header rows (display names contain spaces; real
+      // campaign IDs are numeric or `act_<digits>` and never contain spaces).
+      return !!id && !id.includes(' ');
+    });
 
   return rows.map((row): SMNormalizedCampaign => {
     const spend = parseFloat(String(row[mapping.spend] ?? 0)) || 0;
@@ -115,10 +132,11 @@ export async function smFetchCampaigns(
       0,
     );
     const conversions = parseInt(String(row[mapping.conversions] ?? leads)) || leads;
+    const rawStatus = String(row[mapping.campaign_status] ?? 'ENABLED').toUpperCase();
     return {
       campaign_id: String(row[mapping.campaign_id] ?? ''),
       campaign_name: String(row[mapping.campaign_name] ?? ''),
-      status: String(row[mapping.campaign_status] ?? 'ENABLED').toUpperCase(),
+      status: ACTIVE_STATUSES.has(rawStatus) ? 'ENABLED' : rawStatus,
       spend,
       leads,
       conversions,
