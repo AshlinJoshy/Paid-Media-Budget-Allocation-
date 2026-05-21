@@ -248,37 +248,22 @@ export default function BudgetTable() {
           <div className="flex-1 overflow-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
-                {/* Column headers — must match CampaignGroup (8 cols) + AssignmentRow (11 cols + action) */}
+                {/* Single header row — labels match exactly what's in the line-item rows.
+                    Project / campaign names live in the group banner above each section. */}
                 <tr className="bg-gray-50 text-gray-500 text-[11px] uppercase tracking-wider border-b border-gray-200">
-                  {/* CampaignGroup: toggle | entity | name(colspan2) | status | budget | spent | remaining | leads | cpl | pad(3) */}
-                  <th className="px-2 py-2.5 w-8" />
-                  <th className="px-2 py-2.5 text-left font-semibold min-w-[100px]">Entity</th>
-                  <th className="px-2 py-2.5 text-left font-semibold min-w-[180px]" colSpan={2}>Campaign / Project</th>
-                  <th className="px-2 py-2.5 text-left font-semibold min-w-[90px]">Lines</th>
+                  <th className="px-2 py-2.5 text-left font-semibold min-w-[110px]">Type</th>
+                  <th className="px-2 py-2.5 text-left font-semibold min-w-[130px]">Source</th>
+                  <th className="px-2 py-2.5 text-left font-semibold min-w-[100px]">Start Month</th>
+                  <th className="px-2 py-2.5 text-left font-semibold min-w-[110px]">Start Date</th>
+                  <th className="px-2 py-2.5 text-left font-semibold min-w-[90px]">Status</th>
                   <th className="px-2 py-2.5 text-right font-semibold min-w-[120px]">Allocated</th>
                   <th className="px-2 py-2.5 text-right font-semibold min-w-[110px]">Spent</th>
                   <th className="px-2 py-2.5 text-right font-semibold min-w-[110px]">Remaining</th>
                   <th className="px-2 py-2.5 text-right font-semibold min-w-[70px]">Leads</th>
                   <th className="px-2 py-2.5 text-right font-semibold min-w-[90px]">CPL</th>
-                  <th className="px-2 py-2.5 text-left font-semibold min-w-[200px]">Paid Campaign Name</th>
+                  <th className="px-2 py-2.5 text-left font-semibold min-w-[200px]">Paid Campaign</th>
                   <th className="px-2 py-2.5 text-left font-semibold min-w-[80px]">Synced</th>
                   <th className="px-2 py-2.5 w-10" />
-                </tr>
-                {/* Sub-header — line-item-only columns; right-side columns are blank since labels in row above apply */}
-                <tr className="bg-gray-50/60 text-gray-400 text-[10px] uppercase tracking-wider border-b border-gray-200">
-                  <th className="px-2 py-1.5 text-left font-medium min-w-[110px]">↳ Type</th>
-                  <th className="px-2 py-1.5 text-left font-medium min-w-[130px]">Source</th>
-                  <th className="px-2 py-1.5 text-left font-medium min-w-[100px]">Start Month</th>
-                  <th className="px-2 py-1.5 text-left font-medium min-w-[110px]">Start Date</th>
-                  <th className="px-2 py-1.5 text-left font-medium min-w-[90px]">Status</th>
-                  <th className="px-2 py-1.5 min-w-[120px]" />
-                  <th className="px-2 py-1.5 min-w-[110px]" />
-                  <th className="px-2 py-1.5 min-w-[110px]" />
-                  <th className="px-2 py-1.5 min-w-[70px]" />
-                  <th className="px-2 py-1.5 min-w-[90px]" />
-                  <th className="px-2 py-1.5 min-w-[200px]" />
-                  <th className="px-2 py-1.5 min-w-[80px]" />
-                  <th className="px-2 py-1.5 w-10" />
                 </tr>
               </thead>
               <tbody>
