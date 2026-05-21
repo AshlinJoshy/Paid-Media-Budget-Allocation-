@@ -50,12 +50,16 @@ export default function DropdownCell({ value, options, field, onSave, onAddOptio
     <div ref={ref} className={`relative ${className}`}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1 w-full px-1 py-0.5 text-xs rounded hover:bg-white/60 text-left group"
+        className="flex items-center gap-1 w-full px-1 py-0.5 text-xs rounded hover:bg-white/60 text-left transition-colors duration-150"
       >
-        <span className={`flex-1 truncate ${!value ? 'text-gray-300 italic' : ''}`}>
+        <span
+          className={`flex-1 truncate ${
+            !value ? 'text-gray-300 italic opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-150' : ''
+          }`}
+        >
           {value || placeholder}
         </span>
-        <ChevronDown className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100 shrink-0" />
+        <ChevronDown className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity duration-150" />
       </button>
 
       {open && (

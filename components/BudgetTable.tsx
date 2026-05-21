@@ -37,6 +37,22 @@ export default function BudgetTable() {
     return ids;
   }, [campaigns]);
 
+  const totals = useMemo(() => {
+    let allocated = 0, spent = 0, leads = 0, lineCount = 0;
+    for (const c of campaigns) {
+      for (const a of c.assignments ?? []) {
+        allocated += a.budget_allocation || 0;
+        spent += a.budget_spent || 0;
+        leads += a.leads || 0;
+        lineCount += 1;
+      }
+    }
+    const remaining = allocated - spent;
+    const cpl = leads > 0 ? Math.round((spent / leads) * 100) / 100 : 0;
+    const pct = allocated > 0 ? Math.min(100, Math.round((spent / allocated) * 100)) : 0;
+    return { allocated, spent, remaining, leads, cpl, lineCount, pct };
+  }, [campaigns]);
+
   const loadAll = useCallback(async () => {
     const [campRes, optRes] = await Promise.all([
       fetch('/api/campaigns'),
@@ -223,6 +239,9 @@ export default function BudgetTable() {
           </div>
         </header>
 
+        {/* Summary strip */}
+        <SummaryStrip totals={totals} />
+
         {/* Body */}
         <div className="flex flex-1 min-h-0">
           {/* Table area */}
@@ -230,37 +249,36 @@ export default function BudgetTable() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 {/* Column headers — must match CampaignGroup (8 cols) + AssignmentRow (11 cols + action) */}
-                <tr className="bg-slate-800 text-slate-300 text-xs">
+                <tr className="bg-gray-50 text-gray-500 text-[11px] uppercase tracking-wider border-b border-gray-200">
                   {/* CampaignGroup: toggle | entity | name(colspan2) | status | budget | spent | remaining | leads | cpl | pad(3) */}
-                  <th className="px-2 py-2 w-8" />
-                  <th className="px-2 py-2 text-left font-medium min-w-[100px]">Entity</th>
-                  <th className="px-2 py-2 text-left font-medium min-w-[180px]" colSpan={2}>Campaign / Project</th>
-                  <th className="px-2 py-2 text-left font-medium min-w-[90px]">Status / Lines</th>
-                  <th className="px-2 py-2 text-right font-medium min-w-[120px]">Budget Alloc.</th>
-                  <th className="px-2 py-2 text-right font-medium min-w-[110px]">Spent</th>
-                  <th className="px-2 py-2 text-right font-medium min-w-[110px]">Remaining</th>
-                  <th className="px-2 py-2 text-right font-medium min-w-[70px]">Leads</th>
-                  <th className="px-2 py-2 text-right font-medium min-w-[90px]">CPL</th>
-                  {/* AssignmentRow extra cols */}
-                  <th className="px-2 py-2 text-left font-medium min-w-[200px]">Paid Campaign Name</th>
-                  <th className="px-2 py-2 text-left font-medium min-w-[80px]">Synced</th>
-                  <th className="px-2 py-2 w-10" />
+                  <th className="px-2 py-2.5 w-8" />
+                  <th className="px-2 py-2.5 text-left font-semibold min-w-[100px]">Entity</th>
+                  <th className="px-2 py-2.5 text-left font-semibold min-w-[180px]" colSpan={2}>Campaign / Project</th>
+                  <th className="px-2 py-2.5 text-left font-semibold min-w-[90px]">Lines</th>
+                  <th className="px-2 py-2.5 text-right font-semibold min-w-[120px]">Allocated</th>
+                  <th className="px-2 py-2.5 text-right font-semibold min-w-[110px]">Spent</th>
+                  <th className="px-2 py-2.5 text-right font-semibold min-w-[110px]">Remaining</th>
+                  <th className="px-2 py-2.5 text-right font-semibold min-w-[70px]">Leads</th>
+                  <th className="px-2 py-2.5 text-right font-semibold min-w-[90px]">CPL</th>
+                  <th className="px-2 py-2.5 text-left font-semibold min-w-[200px]">Paid Campaign Name</th>
+                  <th className="px-2 py-2.5 text-left font-semibold min-w-[80px]">Synced</th>
+                  <th className="px-2 py-2.5 w-10" />
                 </tr>
-                {/* Sub-header — must match AssignmentRow <td> count exactly (13 cells) */}
-                <tr className="bg-slate-700 text-slate-400 text-[11px]">
-                  <th className="px-2 py-1 text-left min-w-[110px]">↳ Type</th>
-                  <th className="px-2 py-1 text-left min-w-[130px]">Source</th>
-                  <th className="px-2 py-1 text-left min-w-[100px]">Start Month</th>
-                  <th className="px-2 py-1 text-left min-w-[110px]">Start Date</th>
-                  <th className="px-2 py-1 text-left min-w-[90px]">Status</th>
-                  <th className="px-2 py-1 text-right min-w-[120px]">Budget Alloc.</th>
-                  <th className="px-2 py-1 text-right min-w-[110px]">Spent</th>
-                  <th className="px-2 py-1 text-right min-w-[110px]">Remaining</th>
-                  <th className="px-2 py-1 text-right min-w-[70px]">Leads</th>
-                  <th className="px-2 py-1 text-right min-w-[90px]">CPL</th>
-                  <th className="px-2 py-1 text-left min-w-[200px]">Paid Campaign Name</th>
-                  <th className="px-2 py-1 text-left min-w-[80px]">Synced</th>
-                  <th className="px-2 py-1 w-10" />
+                {/* Sub-header — line-item-only columns; right-side columns are blank since labels in row above apply */}
+                <tr className="bg-gray-50/60 text-gray-400 text-[10px] uppercase tracking-wider border-b border-gray-200">
+                  <th className="px-2 py-1.5 text-left font-medium min-w-[110px]">↳ Type</th>
+                  <th className="px-2 py-1.5 text-left font-medium min-w-[130px]">Source</th>
+                  <th className="px-2 py-1.5 text-left font-medium min-w-[100px]">Start Month</th>
+                  <th className="px-2 py-1.5 text-left font-medium min-w-[110px]">Start Date</th>
+                  <th className="px-2 py-1.5 text-left font-medium min-w-[90px]">Status</th>
+                  <th className="px-2 py-1.5 min-w-[120px]" />
+                  <th className="px-2 py-1.5 min-w-[110px]" />
+                  <th className="px-2 py-1.5 min-w-[110px]" />
+                  <th className="px-2 py-1.5 min-w-[70px]" />
+                  <th className="px-2 py-1.5 min-w-[90px]" />
+                  <th className="px-2 py-1.5 min-w-[200px]" />
+                  <th className="px-2 py-1.5 min-w-[80px]" />
+                  <th className="px-2 py-1.5 w-10" />
                 </tr>
               </thead>
               <tbody>
@@ -279,7 +297,7 @@ export default function BudgetTable() {
                 ))}
                 {campaigns.length === 0 && (
                   <tr>
-                    <td colSpan={15} className="py-16 text-center text-gray-400 text-sm">
+                    <td colSpan={13} className="py-16 text-center text-gray-400 text-sm">
                       No campaigns yet. Add your first one below.
                     </td>
                   </tr>
@@ -322,5 +340,60 @@ export default function BudgetTable() {
         )}
       </DragOverlay>
     </DndContext>
+  );
+}
+
+function fmtAED(n: number) {
+  if (!n) return 'AED 0';
+  return 'AED ' + n.toLocaleString('en-AE', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+interface SummaryStripProps {
+  totals: {
+    allocated: number;
+    spent: number;
+    remaining: number;
+    leads: number;
+    cpl: number;
+    lineCount: number;
+    pct: number;
+  };
+}
+
+function SummaryStrip({ totals }: SummaryStripProps) {
+  const { allocated, spent, remaining, leads, cpl, lineCount, pct } = totals;
+  const overBudget = allocated > 0 && remaining < 0;
+  const warning = allocated > 0 && remaining >= 0 && remaining < allocated * 0.1;
+  const barColor = overBudget ? 'bg-red-500' : warning ? 'bg-orange-400' : 'bg-emerald-500';
+  const remainingColor = overBudget ? 'text-red-600' : warning ? 'text-orange-600' : 'text-emerald-700';
+
+  return (
+    <div className="bg-white border-b border-gray-200 px-4 py-3 shrink-0">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <Stat label="Allocated" value={fmtAED(allocated)} hint={`${lineCount} line${lineCount !== 1 ? 's' : ''}`} />
+        <Stat label="Spent" value={fmtAED(spent)} hint={allocated > 0 ? `${pct}% of budget` : undefined} />
+        <Stat label="Remaining" value={fmtAED(remaining)} valueClassName={remainingColor} />
+        <Stat label="Leads" value={leads > 0 ? leads.toLocaleString() : '—'} />
+        <Stat label="Avg CPL" value={cpl > 0 ? fmtAED(cpl) : '—'} />
+      </div>
+      {allocated > 0 && (
+        <div className="mt-2.5 h-1 w-full bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className={`h-full ${barColor} transition-all duration-500 ease-out`}
+            style={{ width: `${Math.min(100, pct)}%` }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value, hint, valueClassName = 'text-gray-900' }: { label: string; value: string; hint?: string; valueClassName?: string }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">{label}</div>
+      <div className={`text-base font-semibold tabular-nums mt-0.5 ${valueClassName}`}>{value}</div>
+      {hint && <div className="text-[10px] text-gray-400 mt-0.5">{hint}</div>}
+    </div>
   );
 }

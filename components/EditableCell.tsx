@@ -45,11 +45,15 @@ export default function EditableCell({ value, onSave, className = '', placeholde
   return (
     <span
       onClick={() => setEditing(true)}
-      className={`block w-full px-1 py-0.5 text-xs cursor-text rounded hover:bg-white/60 truncate ${!value ? 'text-gray-300' : ''} ${className}`}
+      className={`block w-full px-1 py-0.5 text-xs cursor-text rounded hover:bg-white/60 truncate transition-colors duration-150 ${!value ? 'text-gray-300' : ''} ${className}`}
       title={value || placeholder}
     >
       {prefix && value ? <span className="text-gray-400">{prefix}</span> : null}
-      {value || <span className="text-gray-300 italic text-[11px]">{placeholder}</span>}
+      {value || (
+        <span className="text-gray-300 italic text-[11px] opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-150">
+          {placeholder}
+        </span>
+      )}
     </span>
   );
 }
