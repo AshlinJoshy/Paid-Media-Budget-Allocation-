@@ -64,6 +64,8 @@ export async function POST(req: Request) {
               spend: row.spend,
               leads: row.leads,
               conversions: row.conversions,
+              impressions: row.impressions,
+              clicks: row.clicks,
               last_updated: new Date().toISOString(),
             },
             { onConflict: 'ds_id,account_id,campaign_id' }
@@ -91,7 +93,7 @@ export async function POST(req: Request) {
   for (const assignment of linkedAssignments ?? []) {
     const { data: cached } = await supabase
       .from('cached_campaigns')
-      .select('spend, leads, status')
+      .select('spend, leads, status, impressions, clicks')
       .eq('campaign_id', assignment.supermetrics_campaign_id)
       .single();
 
@@ -101,6 +103,8 @@ export async function POST(req: Request) {
         .update({
           budget_spent: cached.spend,
           leads: cached.leads,
+          impressions: cached.impressions ?? 0,
+          clicks: cached.clicks ?? 0,
           campaign_status: cached.status,
           last_synced: new Date().toISOString(),
           updated_at: new Date().toISOString(),

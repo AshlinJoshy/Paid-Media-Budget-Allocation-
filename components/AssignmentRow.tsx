@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Trash2, RefreshCw } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import EditableCell from './EditableCell';
 import DropdownCell from './DropdownCell';
 import { PaidAssignment, PLATFORM_COLORS, DropdownOptions } from '@/types';
@@ -11,92 +11,97 @@ interface Props {
   onUpdate: (id: string, field: string, value: string | number) => void;
   onDelete: (id: string) => void;
   onAddOption: (field: string, value: string) => void;
+  onDeleteOption: (field: string, value: string) => void;
 }
 
 function fmtAED(n: number) {
   if (!n && n !== 0) return '—';
+  if (n === 0) return '—';
   return 'AED ' + n.toLocaleString('en-AE', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
-function CampaignStatusBadge({ status }: { status: string }) {
-  if (!status) return null;
-  const isEnabled = status.toUpperCase() === 'ENABLED';
-  return (
-    <span
-      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-        isEnabled ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'
-      }`}
-      title={isEnabled ? 'Campaign is live' : 'Campaign is paused'}
-    >
-      <span className={`h-1.5 w-1.5 rounded-full ${isEnabled ? 'bg-emerald-500' : 'bg-gray-400'}`} />
-      {isEnabled ? 'Live' : 'Paused'}
-    </span>
-  );
+function fmtNum(n: number) {
+  if (!n) return '—';
+  return n.toLocaleString();
 }
 
-export default function AssignmentRow({ row, options, onUpdate, onDelete, onAddOption }: Props) {
+function statusChipClass(value: string) {
+  const v = (value || '').toLowerCase();
+  if (/live|active|running|enabled/.test(v)) return 'bg-emerald-100 text-emerald-700';
+  if (/off|paus|stop|disabl|end/.test(v)) return 'bg-red-100 text-red-700';
+  if (/plan/.test(v)) return 'bg-blue-50 text-blue-700';
+  if (/complet/.test(v)) return 'bg-gray-100 text-gray-600';
+  return '';
+}
+
+export default function AssignmentRow({ row, options, onUpdate, onDelete, onAddOption, onDeleteOption }: Props) {
   const [hovering, setHovering] = useState(false);
   const colors = PLATFORM_COLORS[row.platform] ?? PLATFORM_COLORS['unknown'];
 
   function save(field: string) {
     return (v: string) => {
-      const numericFields = ['budget_allocation', 'budget_spent', 'leads'];
+      const numericFields = ['budget_allocation', 'budget_spent', 'leads', 'qualified_leads', 'impressions', 'clicks'];
       onUpdate(row.id, field, numericFields.includes(field) ? parseFloat(v) || 0 : v);
     };
   }
 
   const remaining = row.budget_allocation - row.budget_spent;
   const cpl = row.leads > 0 ? Math.round((row.budget_spent / row.leads) * 100) / 100 : 0;
+  const isEmptyBudget = row.budget_allocation === 0 && row.budget_spent === 0;
 
   return (
     <tr
-      className={`group ${colors.row} ${colors.accent} border-b border-gray-100/80 transition-colors duration-150 hover:brightness-[0.98]`}
+      className={`group ${colors.row} ${colors.accent} transition-colors duration-150 hover:brightness-[0.98]`}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
     >
       {/* Type */}
-      <td className="px-2 py-2 min-w-[110px]">
-        <EditableCell value={row.type} onSave={save('type')} placeholder="Type…" />
+      <td className="px-2 py-2 min-w-[130px] border border-gray-200">
+        <DropdownCell
+          value={row.type}
+          options={options.type}
+          field="type"
+          onSave={save('type')}
+          onAddOption={onAddOption}
+          onDeleteOption={onDeleteOption}
+          placeholder="Type…"
+        />
       </td>
       {/* Source */}
-      <td className="px-2 py-2 min-w-[130px]">
+      <td className="px-2 py-2 min-w-[130px] border border-gray-200">
         <DropdownCell
           value={row.source}
           options={options.source}
           field="source"
           onSave={save('source')}
           onAddOption={onAddOption}
+          onDeleteOption={onDeleteOption}
           placeholder="Source…"
         />
       </td>
-      {/* Start Month */}
-      <td className="px-2 py-2 min-w-[100px]">
-        <DropdownCell
-          value={row.start_month}
-          options={options.start_month}
-          field="start_month"
-          onSave={save('start_month')}
-          onAddOption={onAddOption}
-          placeholder="Month…"
-        />
-      </td>
-      {/* Start Date */}
-      <td className="px-2 py-2 min-w-[110px]">
-        <EditableCell value={row.start_date} onSave={save('start_date')} placeholder="dd-Mon-yyyy" />
+      {/* Paid Campaign Name */}
+      <td className="px-2 py-2 min-w-[220px] border border-gray-200">
+        <EditableCell value={row.paid_campaign_name ?? ''} onSave={save('paid_campaign_name')} placeholder="Campaign name…" />
       </td>
       {/* Status */}
-      <td className="px-2 py-2 min-w-[90px]">
+      <td className="px-2 py-2 min-w-[100px] border border-gray-200">
         <DropdownCell
           value={row.status}
           options={options.status}
           field="status"
           onSave={save('status')}
           onAddOption={onAddOption}
+          onDeleteOption={onDeleteOption}
           placeholder="Status…"
+          chipClassName={statusChipClass(row.status)}
         />
       </td>
-      {/* Budget Allocation */}
-      <td className="px-2 py-2 min-w-[120px] text-right">
+      {/* Start Date */}
+      <td className="px-2 py-2 min-w-[120px] border border-gray-200">
+        <EditableCell value={row.start_date} onSave={save('start_date')} placeholder="YYYY-MM-DD" type="date" />
+      </td>
+      {/* Allocated */}
+      <td className="px-2 py-2 min-w-[120px] text-right border border-gray-200">
         <EditableCell
           value={row.budget_allocation ? String(row.budget_allocation) : ''}
           onSave={save('budget_allocation')}
@@ -105,42 +110,38 @@ export default function AssignmentRow({ row, options, onUpdate, onDelete, onAddO
           className="text-right tabular-nums"
         />
       </td>
-      {/* Budget Spent */}
-      <td className="px-2 py-2 min-w-[110px] text-right">
+      {/* Spent */}
+      <td className="px-2 py-2 min-w-[110px] text-right border border-gray-200">
         <span className="block text-xs text-right px-1 tabular-nums text-gray-700">{fmtAED(row.budget_spent)}</span>
       </td>
       {/* Remaining */}
-      <td className={`px-2 py-2 min-w-[110px] text-right`}>
-        <span className={`block text-xs text-right px-1 font-medium tabular-nums ${row.budget_allocation === 0 ? 'text-gray-400' : remaining < 0 ? 'text-red-600' : remaining < row.budget_allocation * 0.1 ? 'text-orange-600' : 'text-emerald-700'}`}>
-          {row.budget_allocation === 0 && row.budget_spent === 0 ? '—' : fmtAED(remaining)}
+      <td className="px-2 py-2 min-w-[110px] text-right border border-gray-200">
+        <span className={`block text-xs text-right px-1 font-medium tabular-nums ${isEmptyBudget ? 'text-gray-400' : remaining < 0 ? 'text-red-600' : remaining < row.budget_allocation * 0.1 ? 'text-orange-600' : 'text-emerald-700'}`}>
+          {isEmptyBudget ? '—' : fmtAED(remaining)}
         </span>
       </td>
       {/* Leads */}
-      <td className="px-2 py-2 min-w-[70px] text-right">
-        <span className="block text-xs text-right px-1 font-medium tabular-nums">{row.leads > 0 ? row.leads.toLocaleString() : '—'}</span>
+      <td className="px-2 py-2 min-w-[70px] text-right border border-gray-200">
+        <span className="block text-xs text-right px-1 font-medium tabular-nums">{fmtNum(row.leads)}</span>
       </td>
       {/* CPL */}
-      <td className="px-2 py-2 min-w-[90px] text-right">
+      <td className="px-2 py-2 min-w-[90px] text-right border border-gray-200">
         <span className="block text-xs text-right px-1 tabular-nums text-gray-600">{cpl > 0 ? fmtAED(cpl) : '—'}</span>
       </td>
-      {/* Paid Campaign Name */}
-      <td className="px-2 py-2 min-w-[200px]">
-        <div className="flex items-center gap-1.5">
-          <EditableCell value={row.paid_campaign_name ?? ''} onSave={save('paid_campaign_name')} placeholder="Campaign name…" className="flex-1" />
-          {row.campaign_status && <CampaignStatusBadge status={row.campaign_status} />}
-        </div>
+      {/* Qualified Leads (from Engage) */}
+      <td className="px-2 py-2 min-w-[110px] text-right border border-gray-200" title="From Engage (matched by UTM)">
+        <span className="block text-xs text-right px-1 font-medium tabular-nums text-gray-700">{fmtNum(row.qualified_leads ?? 0)}</span>
       </td>
-      {/* Last synced */}
-      <td className="px-2 py-2 min-w-[80px]">
-        {row.last_synced && (
-          <span className="flex items-center gap-0.5 text-[10px] text-gray-400">
-            <RefreshCw className="h-2.5 w-2.5" />
-            {new Date(row.last_synced).toLocaleDateString()}
-          </span>
-        )}
+      {/* Impressions */}
+      <td className="px-2 py-2 min-w-[110px] text-right border border-gray-200">
+        <span className="block text-xs text-right px-1 tabular-nums text-gray-600">{fmtNum(row.impressions ?? 0)}</span>
+      </td>
+      {/* Clicks */}
+      <td className="px-2 py-2 min-w-[90px] text-right border border-gray-200">
+        <span className="block text-xs text-right px-1 tabular-nums text-gray-600">{fmtNum(row.clicks ?? 0)}</span>
       </td>
       {/* Actions */}
-      <td className="px-2 py-2 w-10">
+      <td className="px-2 py-2 w-10 border border-gray-200">
         <button
           onClick={() => onDelete(row.id)}
           className={`p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all duration-150 ${hovering ? 'opacity-100' : 'opacity-0'}`}

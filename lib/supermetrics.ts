@@ -9,6 +9,8 @@ export interface SMNormalizedCampaign {
   spend: number;
   leads: number;
   conversions: number;
+  impressions: number;
+  clicks: number;
 }
 
 interface FieldMapping {
@@ -19,6 +21,8 @@ interface FieldMapping {
   spend: string;
   leads: string[];
   conversions: string;
+  impressions: string;
+  clicks: string;
 }
 
 // Supermetrics field IDs are platform-specific. Verified via field_discovery
@@ -32,6 +36,8 @@ const MAPPINGS: Record<string, FieldMapping> = {
       'cost',
       'offsite_conversions_fb_pixel_lead',
       'onsite_conversion.lead_grouped',
+      'impressions',
+      'inline_link_clicks',
     ],
     campaign_id: 'adcampaign_id',
     campaign_name: 'adcampaign_name',
@@ -39,15 +45,19 @@ const MAPPINGS: Record<string, FieldMapping> = {
     spend: 'cost',
     leads: ['offsite_conversions_fb_pixel_lead', 'onsite_conversion.lead_grouped'],
     conversions: 'offsite_conversions_fb_pixel_lead',
+    impressions: 'impressions',
+    clicks: 'inline_link_clicks',
   },
   AW: {
-    request: ['CampaignID', 'Campaignname', 'Campaignstatus', 'Cost', 'Conversions'],
+    request: ['CampaignID', 'Campaignname', 'Campaignstatus', 'Cost', 'Conversions', 'Impressions', 'Clicks'],
     campaign_id: 'CampaignID',
     campaign_name: 'Campaignname',
     campaign_status: 'Campaignstatus',
     spend: 'Cost',
     leads: ['Conversions'],
     conversions: 'Conversions',
+    impressions: 'Impressions',
+    clicks: 'Clicks',
   },
 };
 
@@ -132,6 +142,8 @@ export async function smFetchCampaigns(
       0,
     );
     const conversions = parseInt(String(row[mapping.conversions] ?? leads)) || leads;
+    const impressions = parseInt(String(row[mapping.impressions] ?? 0)) || 0;
+    const clicks = parseInt(String(row[mapping.clicks] ?? 0)) || 0;
     const rawStatus = String(row[mapping.campaign_status] ?? 'ENABLED').toUpperCase();
     return {
       campaign_id: String(row[mapping.campaign_id] ?? ''),
@@ -140,6 +152,8 @@ export async function smFetchCampaigns(
       spend,
       leads,
       conversions,
+      impressions,
+      clicks,
     };
   });
 }
