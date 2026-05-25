@@ -3,13 +3,21 @@
 
 export interface LeadRow {
   lead_id: number;
+  lead_reference: string | null;
   lead_created_at: string;
+  lead_last_updated_at: string | null;
+  customer_id: number | null;
   client_type: string | null;
   current_stage: string | null;
   lead_state: string | null;
   lead_score: string | null;
+  purpose: string | null;
   canonical_source: string | null;
   raw_source: string | null;
+  enquiry_method: string | null;
+  contact_method: string | null;
+  input_source: string | null;
+  is_whatsapp_chat: number | null;
   utm_source: string | null;
   utm_medium: string | null;
   utm_campaign: string | null;
@@ -17,10 +25,17 @@ export interface LeadRow {
   utm_content: string | null;
   campaign_code: string | null;
   campaign_code_origin: string | null; // 'UTM' | 'Internal' | null
+  internal_campaign_ids: string | null;
   internal_campaign_codes: string | null;
   internal_campaign_names: string | null;
+  current_agent_id: number | null;
+  current_agent_name: string | null;
+  current_agent_status: string | null;
   branch: string | null;
   division: string | null;
+  agent_reassignment_count: number;
+  first_agent_change_at: string | null;
+  last_agent_change_at: string | null;
   stage_1_lead_received: number;
   stage_2_qualified: number;
   stage_2b_valuation: number;
@@ -30,10 +45,26 @@ export interface LeadRow {
   stage_5_reserved: number;
   stage_6_deal_closed: number;
   customer_comm_count: number;
+  incoming_contacts: number;
+  outgoing_contacts: number;
   successful_contacts: number;
+  phone_attempts: number;
+  email_attempts: number;
+  whatsapp_attempts: number;
+  total_activities: number;
+  first_activity_at: string | null;
+  last_activity_datetime: string | null;
+  first_touch_at: string | null;
   hours_to_first_touch: number | null;
+  last_touch_at: string | null;
+  days_since_last_touch: number | null;
   responsiveness_flag: string | null;
+  lead_notes_count: number;
+  listings_enquired: number | null;
   conversion_status: string | null;
+  deal_reference: string | null;
+  deal_type: string | null;
+  deal_status: string | null;
   deal_final_price: number | null;
   deal_commission: number | null;
   deal_reserved_at: string | null;
