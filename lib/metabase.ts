@@ -24,7 +24,9 @@ let session: SessionCache | null = null;
 function env(name: string): string {
   const v = process.env[name];
   if (!v) throw new Error(`Missing env: ${name}`);
-  return v;
+  // Trim leading/trailing whitespace (incl. tabs/newlines) — pasted values in
+  // Vercel often pick up stray whitespace that breaks downstream calls.
+  return v.trim();
 }
 
 function baseUrl(): string {
