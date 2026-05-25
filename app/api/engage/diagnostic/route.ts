@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { metabaseQuery, MetabaseError } from '@/lib/metabase';
+import { metabaseQuery, MetabaseError, getAuthMode } from '@/lib/metabase';
 
 // GET /api/engage/diagnostic
 // Step-by-step health check. Hit this URL in a browser to see exactly which
@@ -15,9 +15,19 @@ export async function GET() {
   }
 
   // 1. Env vars present?
-  const required = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'METABASE_BASE_URL', 'METABASE_USERNAME', 'METABASE_PASSWORD', 'METABASE_DATABASE_ID'];
-  const missing = required.filter((k) => !process.env[k]);
-  record('env_vars_present', missing.length === 0, missing.length ? `missing: ${missing.join(', ')}` : `all ${required.length} set`);
+  const baseRequired = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'METABASE_BASE_URL', 'METABASE_DATABASE_ID'];
+  const hasApiKey = !!process.env.METABASE_API_KEY;
+  const hasUserPass = !!(process.env.METABASE_USERNAME && process.env.METABASE_PASSWORD);
+  const missingBase = baseRequired.filter((k) => !process.env[k]);
+  const authOk = hasApiKey || hasUserPass;
+  const missing = [...missingBase, ...(authOk ? [] : ['METABASE_API_KEY or (METABASE_USERNAME + METABASE_PASSWORD)'])];
+  record(
+    'env_vars_present',
+    missing.length === 0,
+    missing.length
+      ? `missing: ${missing.join(', ')}`
+      : `auth_mode=${getAuthMode()}, ${baseRequired.length} base vars set`,
+  );
 
   // 1b. METABASE_BASE_URL is parseable?
   if (process.env.METABASE_BASE_URL) {

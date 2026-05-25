@@ -1,11 +1,17 @@
 // Thin wrapper around Metabase's REST API with verbose logging.
 // All [metabase] prefixed logs appear in Vercel → Deployments → Functions tab.
 //
+// Auth: prefers METABASE_API_KEY (works with SSO accounts on Metabase Cloud).
+// Falls back to METABASE_USERNAME + METABASE_PASSWORD via /api/session.
+//
 // Env required:
-//   METABASE_BASE_URL      e.g. https://metabase.bhomes.com (scheme optional)
-//   METABASE_USERNAME
-//   METABASE_PASSWORD
-//   METABASE_DATABASE_ID   numeric DB id in Metabase (visible in Admin > Databases URL)
+//   METABASE_BASE_URL      e.g. https://engage.metabaseapp.com (scheme optional)
+//   METABASE_DATABASE_ID   numeric DB id (Admin → Databases → URL has /databases/N)
+//
+// Plus EITHER:
+//   METABASE_API_KEY       starts with "mb_..." — Metabase Cloud → Account → API keys
+// OR:
+//   METABASE_USERNAME + METABASE_PASSWORD   only works if account has a real password
 
 interface SessionCache {
   token: string;
@@ -27,6 +33,11 @@ function baseUrl(): string {
   return raw;
 }
 
+export type AuthMode = 'api_key' | 'session';
+export function getAuthMode(): AuthMode {
+  return process.env.METABASE_API_KEY ? 'api_key' : 'session';
+}
+
 export class MetabaseError extends Error {
   status?: number;
   upstream?: string;
@@ -43,7 +54,7 @@ export class MetabaseError extends Error {
 async function login(): Promise<string> {
   const url = `${baseUrl()}/api/session`;
   const username = env('METABASE_USERNAME');
-  console.log(`[metabase] login → POST ${url} (user=${username})`);
+  console.log(`[metabase] session login → POST ${url} (user=${username})`);
   let res: Response;
   try {
     res = await fetch(url, {
@@ -62,8 +73,11 @@ async function login(): Promise<string> {
   if (!res.ok) {
     const body = await res.text();
     console.error(`[metabase] login failed status=${res.status} body=${body.slice(0, 500)}`);
+    const hint = res.status === 401
+      ? ' — HTTP 401 usually means the account uses SSO (Google/SAML/Okta). Set METABASE_API_KEY instead.'
+      : '';
     throw new MetabaseError(
-      `Metabase login failed (HTTP ${res.status}) at ${url}`,
+      `Metabase login failed (HTTP ${res.status}) at ${url}${hint}`,
       'login',
       res.status,
       body.slice(0, 500),
@@ -78,7 +92,7 @@ async function login(): Promise<string> {
   return json.id;
 }
 
-async function getToken(): Promise<string> {
+async function getSessionToken(): Promise<string> {
   if (session && Date.now() - session.fetchedAt < SESSION_TTL_MS) {
     console.log('[metabase] using cached session token');
     return session.token;
@@ -86,6 +100,15 @@ async function getToken(): Promise<string> {
   const token = await login();
   session = { token, fetchedAt: Date.now() };
   return token;
+}
+
+// Returns the headers needed to authenticate one request, picking auth mode
+// based on which env vars are set. API key path skips the login round-trip.
+async function authHeaders(): Promise<Record<string, string>> {
+  if (process.env.METABASE_API_KEY) {
+    return { 'X-API-KEY': process.env.METABASE_API_KEY };
+  }
+  return { 'X-Metabase-Session': await getSessionToken() };
 }
 
 export interface MetabaseDatasetResult {
@@ -106,12 +129,13 @@ export async function metabaseQuery(sql: string, params: unknown[] = []): Promis
 
   const url = `${baseUrl()}/api/dataset`;
   const sqlPreview = sql.replace(/\s+/g, ' ').trim().slice(0, 120);
-  console.log(`[metabase] query → POST ${url} (db=${databaseId}, sql="${sqlPreview}…")`);
+  console.log(`[metabase] query (${getAuthMode()}) → POST ${url} (db=${databaseId}, sql="${sqlPreview}…")`);
 
-  async function run(token: string) {
+  async function run() {
+    const headers = await authHeaders();
     return fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Metabase-Session': token },
+      headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({
         database: databaseId,
         type: 'native',
@@ -123,10 +147,9 @@ export async function metabaseQuery(sql: string, params: unknown[] = []): Promis
   }
 
   const started = Date.now();
-  let token = await getToken();
   let res: Response;
   try {
-    res = await run(token);
+    res = await run();
   } catch (e) {
     console.error(`[metabase] query fetch threw: ${e instanceof Error ? e.message : String(e)}`);
     throw new MetabaseError(
@@ -135,11 +158,11 @@ export async function metabaseQuery(sql: string, params: unknown[] = []): Promis
     );
   }
 
-  if (res.status === 401 || res.status === 403) {
-    console.log(`[metabase] query got ${res.status}, retrying with fresh token`);
+  // Only session tokens can go stale; API keys don't expire on the request level.
+  if ((res.status === 401 || res.status === 403) && getAuthMode() === 'session') {
+    console.log(`[metabase] query got ${res.status}, retrying with fresh session token`);
     session = null;
-    token = await getToken();
-    res = await run(token);
+    res = await run();
   }
 
   if (!res.ok) {
