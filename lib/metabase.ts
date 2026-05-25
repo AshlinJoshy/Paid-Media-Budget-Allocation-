@@ -135,21 +135,22 @@ export async function metabaseQuery(sql: string, params: unknown[] = []): Promis
 
   async function run() {
     const headers = await authHeaders();
-    return fetch(url, {
+    // Use /api/dataset/json — the export endpoint — which doesn't apply the
+    // "userland" 2000-row cap that /api/dataset enforces by default. Response
+    // is an array of row-objects keyed by column name.
+    return fetch(`${baseUrl()}/api/dataset/json`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...headers },
-      body: JSON.stringify({
-        database: databaseId,
-        type: 'native',
-        native: { query: sql, 'template-tags': {} },
-        parameters: params,
-        // Metabase /api/dataset caps "userland" queries at 2000 rows by default
-        // to protect the UI. We need the full result set, so disable that.
-        middleware: {
-          'add-default-userland-constraints?': false,
-          'userland-query?': false,
-        },
-      }),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
+      body:
+        'query=' +
+        encodeURIComponent(
+          JSON.stringify({
+            database: databaseId,
+            type: 'native',
+            native: { query: sql, 'template-tags': {} },
+            parameters: params,
+          }),
+        ),
       cache: 'no-store',
     });
   }
@@ -188,14 +189,30 @@ export async function metabaseQuery(sql: string, params: unknown[] = []): Promis
   }
 
   const json = await res.json();
+
+  // /api/dataset/json returns an array of row-objects keyed by column name.
+  if (Array.isArray(json)) {
+    if (json.length === 0) {
+      console.log(`[metabase] query OK in ${Date.now() - started}ms — 0 rows`);
+      return { columns: [], rows: [], rowCount: 0 };
+    }
+    const columns = Object.keys(json[0] as Record<string, unknown>);
+    const rows = json.map((obj) => columns.map((c) => (obj as Record<string, unknown>)[c]));
+    console.log(`[metabase] query OK in ${Date.now() - started}ms — ${rows.length} rows, ${columns.length} cols`);
+    return { columns, rows, rowCount: rows.length };
+  }
+
+  // Error envelope: { error: "..." } or similar.
   if (json?.error) {
     const errStr = typeof json.error === 'string' ? json.error : JSON.stringify(json.error);
     console.error(`[metabase] SQL error: ${errStr.slice(0, 500)}`);
     throw new MetabaseError(`Metabase SQL error: ${errStr.slice(0, 500)}`, 'sql', undefined, errStr);
   }
+
+  // Defensive fallback for old /api/dataset response shape.
   const cols = (json?.data?.cols ?? []).map((c: { name: string }) => c.name);
   const rows = json?.data?.rows ?? [];
-  console.log(`[metabase] query OK in ${Date.now() - started}ms — ${rows.length} rows, ${cols.length} cols`);
+  console.log(`[metabase] query OK in ${Date.now() - started}ms — ${rows.length} rows, ${cols.length} cols (legacy shape)`);
   return { columns: cols, rows, rowCount: rows.length };
 }
 
