@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { DndContext, DragEndEvent, DragOverlay, useSensor, useSensors, PointerSensor, defaultDropAnimationSideEffects, DropAnimation } from '@dnd-kit/core';
-import { Plus, Settings, RefreshCw, LayoutGrid, PanelRightOpen, Calendar, X } from 'lucide-react';
+import { Plus, Settings, RefreshCw, LayoutGrid, PanelRightOpen, Calendar, X, BarChart3, Users } from 'lucide-react';
+import Link from 'next/link';
 import CampaignGroup from './CampaignGroup';
 import CampaignPanel from './CampaignPanel';
 import PlatformBadge from './PlatformBadge';
@@ -16,6 +17,7 @@ export default function BudgetTable() {
   const [activeDrag, setActiveDrag] = useState<CachedCampaign | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [engageSyncing, setEngageSyncing] = useState(false);
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
 
@@ -219,6 +221,29 @@ export default function BudgetTable() {
     } as Partial<PaidAssignment>);
   }
 
+  async function syncEngage() {
+    setEngageSyncing(true);
+    setSyncMsg(null);
+    try {
+      const res = await fetch('/api/engage/qualify-rollup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) setSyncMsg(`Engage: ${data.error}`);
+      else {
+        setSyncMsg(`Engage: matched ${data.matched} / ${data.assignments_scanned} rows`);
+        loadAll();
+      }
+    } catch {
+      setSyncMsg('Network error syncing Engage');
+    } finally {
+      setEngageSyncing(false);
+      setTimeout(() => setSyncMsg(null), 4000);
+    }
+  }
+
   // --- Sync ---
   async function syncAll() {
     setSyncing(true);
@@ -258,13 +283,30 @@ export default function BudgetTable() {
             {syncMsg && (
               <span className="text-xs text-green-300 bg-green-900/40 px-2 py-0.5 rounded">{syncMsg}</span>
             )}
+            <Link
+              href="/analytics"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 rounded font-medium"
+              title="Lead Analytics"
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              Analytics
+            </Link>
+            <button
+              onClick={syncEngage}
+              disabled={engageSyncing}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 rounded font-medium disabled:opacity-60"
+              title="Recompute qualified lead counts from Engage"
+            >
+              <Users className={`h-3.5 w-3.5 ${engageSyncing ? 'animate-pulse' : ''}`} />
+              {engageSyncing ? 'Syncing…' : 'Sync Engage'}
+            </button>
             <button
               onClick={syncAll}
               disabled={syncing}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 rounded font-medium disabled:opacity-60"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? 'Syncing…' : 'Sync Now'}
+              {syncing ? 'Syncing…' : 'Sync Supermetrics'}
             </button>
             <button
               onClick={() => setShowPanel((v) => !v)}
