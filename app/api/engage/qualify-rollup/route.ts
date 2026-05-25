@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { metabaseQueryRows } from '@/lib/metabase';
+import { metabaseQueryRows, MetabaseError } from '@/lib/metabase';
 import { buildQualifiedRollupSql } from '@/lib/engage-sql';
 
 // Refresh paid_assignments.qualified_leads from Engage.
@@ -24,16 +24,28 @@ async function run(req: Request, sinceFromBody?: string) {
     ? sinceFromBody
     : defaultSince();
 
+  console.log(`[qualify-rollup] start since=${since}`);
   let rollup: { utm_campaign: string; qualified_leads: number }[];
   try {
     rollup = await metabaseQueryRows<{ utm_campaign: string; qualified_leads: number }>(
       buildQualifiedRollupSql(since),
     );
+    console.log(`[qualify-rollup] metabase returned ${rollup.length} campaigns`);
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 502 },
-    );
+    console.error(`[qualify-rollup] metabase failed: ${err instanceof Error ? err.message : String(err)}`);
+    if (err instanceof MetabaseError) {
+      return NextResponse.json({
+        error: err.message,
+        stage: err.stage,
+        status: err.status,
+        upstream: err.upstream,
+        hint: 'Hit /api/engage/diagnostic for a step-by-step health check.',
+      }, { status: 502 });
+    }
+    return NextResponse.json({
+      error: err instanceof Error ? err.message : String(err),
+      hint: 'Hit /api/engage/diagnostic for a step-by-step health check.',
+    }, { status: 502 });
   }
 
   const byName = new Map<string, number>();
