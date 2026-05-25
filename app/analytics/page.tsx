@@ -7,7 +7,7 @@ import {
   CartesianGrid, PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import {
-  LeadRow, Filters, rowsToObjects, applyFilters, uniqueValues, pickFunnels,
+  LeadRow, Filters, rowsToObjects, applyFilters, buildFacetedOptions, pickFunnels,
   groupBy, attachSpend, leadsByDay, LeaderboardRow,
 } from '@/lib/engage-analytics';
 import FilterPanel from './components/FilterPanel';
@@ -116,18 +116,10 @@ export default function AnalyticsPage() {
 
   // Option lists for filter sidebar (based on the full pull, not the filtered subset
   // so filter changes don't make options disappear).
-  const optionLists = useMemo(() => ({
-    clientType: uniqueValues(leads, 'client_type'),
-    canonicalSource: uniqueValues(leads, 'canonical_source'),
-    utmSource: uniqueValues(leads, 'utm_source'),
-    utmMedium: uniqueValues(leads, 'utm_medium'),
-    utmCampaign: uniqueValues(leads, 'utm_campaign'),
-    utmContent: uniqueValues(leads, 'utm_content'),
-    campaignCode: uniqueValues(leads, 'campaign_code'),
-    campaignCodeOrigin: uniqueValues(leads, 'campaign_code_origin'),
-    branch: uniqueValues(leads, 'branch'),
-    division: uniqueValues(leads, 'division'),
-  }), [leads]);
+  // Faceted: each filter's options are values that exist in leads passing every
+  // OTHER filter. Pick Campaign X → Branch list narrows to branches with
+  // Campaign X leads. Recomputes when filters change.
+  const optionLists = useMemo(() => buildFacetedOptions(leads, filters), [leads, filters]);
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">

@@ -134,6 +134,43 @@ export function uniqueValues(leads: LeadRow[], key: keyof LeadRow): string[] {
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
 
+// Mapping from Filters set-field → LeadRow column. Used by buildFacetedOptions
+// to know which lead column a given filter dimension narrows.
+const FILTER_TO_COLUMN: Record<Exclude<keyof Filters, 'dateFrom' | 'dateTo'>, keyof LeadRow> = {
+  clientType: 'client_type',
+  canonicalSource: 'canonical_source',
+  utmSource: 'utm_source',
+  utmMedium: 'utm_medium',
+  utmCampaign: 'utm_campaign',
+  utmContent: 'utm_content',
+  campaignCode: 'campaign_code',
+  campaignCodeOrigin: 'campaign_code_origin',
+  branch: 'branch',
+  division: 'division',
+};
+
+// Faceted options: for each filter dimension, return values that exist in the
+// subset of leads passing every OTHER filter. So if you pick Campaign X, the
+// Branch dropdown narrows to branches with Campaign X leads — but the Campaign
+// dropdown keeps showing every campaign so you can swap your selection.
+//
+// Currently-selected values are always included even if the cross-filter
+// produces zero rows for them, so the user can always deselect.
+export function buildFacetedOptions(
+  leads: LeadRow[],
+  filters: Filters,
+): Record<keyof typeof FILTER_TO_COLUMN, string[]> {
+  const out = {} as Record<keyof typeof FILTER_TO_COLUMN, string[]>;
+  for (const field of Object.keys(FILTER_TO_COLUMN) as (keyof typeof FILTER_TO_COLUMN)[]) {
+    const tempFilters: Filters = { ...filters, [field]: new Set<string>() };
+    const subset = applyFilters(leads, tempFilters);
+    const available = new Set(uniqueValues(subset, FILTER_TO_COLUMN[field]));
+    for (const v of filters[field]) available.add(v); // keep current selections visible
+    out[field] = Array.from(available).sort((a, b) => a.localeCompare(b));
+  }
+  return out;
+}
+
 // ============ Funnel ============
 
 export interface FunnelStage { name: string; key: keyof LeadRow; count: number }
