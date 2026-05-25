@@ -21,13 +21,38 @@ export async function GET() {
   const missingBase = baseRequired.filter((k) => !process.env[k]);
   const authOk = hasApiKey || hasUserPass;
   const missing = [...missingBase, ...(authOk ? [] : ['METABASE_API_KEY or (METABASE_USERNAME + METABASE_PASSWORD)'])];
+  const usernameEcho = process.env.METABASE_USERNAME
+    ? maskEmail(process.env.METABASE_USERNAME)
+    : '(not set)';
+  const apiKeyEcho = process.env.METABASE_API_KEY
+    ? `${process.env.METABASE_API_KEY.slice(0, 6)}…${process.env.METABASE_API_KEY.slice(-4)}`
+    : '(not set)';
   record(
     'env_vars_present',
     missing.length === 0,
     missing.length
       ? `missing: ${missing.join(', ')}`
-      : `auth_mode=${getAuthMode()}, ${baseRequired.length} base vars set`,
+      : `auth_mode=${getAuthMode()}, username=${usernameEcho}, api_key=${apiKeyEcho}`,
   );
+
+  // 1d. Raw HTTP probe to Metabase base URL (does the server even respond?).
+  if (process.env.METABASE_BASE_URL) {
+    const t0 = Date.now();
+    let raw = process.env.METABASE_BASE_URL.trim().replace(/\/+$/, '');
+    if (!/^https?:\/\//i.test(raw)) raw = 'https://' + raw;
+    try {
+      const r = await fetch(`${raw}/api/health`, { cache: 'no-store' });
+      const body = await r.text();
+      record(
+        'metabase_health_probe',
+        r.ok,
+        `HTTP ${r.status} body=${body.slice(0, 100)}`,
+        t0,
+      );
+    } catch (e) {
+      record('metabase_health_probe', false, e instanceof Error ? e.message : String(e), t0);
+    }
+  }
 
   // 1b. METABASE_BASE_URL is parseable?
   if (process.env.METABASE_BASE_URL) {
@@ -103,4 +128,10 @@ export async function GET() {
       ? 'All systems go — try clicking "Sync Engage" on the budget table.'
       : 'See the first failing check above. Logs in Vercel → Deployments → Functions tab have more detail.',
   }, { status: allOk ? 200 : 503 });
+}
+
+function maskEmail(email: string): string {
+  const [user = '', domain = ''] = email.split('@');
+  if (!domain) return email.slice(0, 2) + '…';
+  return `${user.slice(0, 2)}…@${domain}`;
 }

@@ -151,6 +151,9 @@ export async function metabaseQuery(sql: string, params: unknown[] = []): Promis
   try {
     res = await run();
   } catch (e) {
+    // If the error is already a MetabaseError (e.g. login 401), rethrow it
+    // unchanged — wrapping it would hide the real cause.
+    if (e instanceof MetabaseError) throw e;
     console.error(`[metabase] query fetch threw: ${e instanceof Error ? e.message : String(e)}`);
     throw new MetabaseError(
       `Network error reaching Metabase at ${url}: ${e instanceof Error ? e.message : String(e)}`,
