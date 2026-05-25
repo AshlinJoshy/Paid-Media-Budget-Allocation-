@@ -25,9 +25,9 @@ async function run(req: Request, sinceFromBody?: string) {
     : defaultSince();
 
   console.log(`[qualify-rollup] start since=${since}`);
-  let rollup: { utm_campaign: string; qualified_leads: number }[];
+  let rollup: { campaign_code: string; qualified_leads: number }[];
   try {
-    rollup = await metabaseQueryRows<{ utm_campaign: string; qualified_leads: number }>(
+    rollup = await metabaseQueryRows<{ campaign_code: string; qualified_leads: number }>(
       buildQualifiedRollupSql(since),
     );
     console.log(`[qualify-rollup] metabase returned ${rollup.length} campaigns`);
@@ -50,7 +50,7 @@ async function run(req: Request, sinceFromBody?: string) {
 
   const byName = new Map<string, number>();
   for (const r of rollup) {
-    const key = (r.utm_campaign ?? '').toString().trim().toLowerCase();
+    const key = (r.campaign_code ?? '').toString().trim().toLowerCase();
     if (!key) continue;
     byName.set(key, Number(r.qualified_leads) || 0);
   }
@@ -79,7 +79,7 @@ async function run(req: Request, sinceFromBody?: string) {
   return NextResponse.json({
     success: true,
     since,
-    utm_campaigns_in_engage: byName.size,
+    campaign_codes_in_engage: byName.size,
     assignments_scanned: assignments?.length ?? 0,
     matched,
     updated,

@@ -11,6 +11,8 @@ interface Props {
     utmMedium: string[];
     utmCampaign: string[];
     utmContent: string[];
+    campaignCode: string[];
+    campaignCodeOrigin: string[];
     branch: string[];
     division: string[];
   };
@@ -36,6 +38,7 @@ export default function FilterPanel({ options, filters, onChange, totalRows, fil
         clientType: new Set(), canonicalSource: new Set(),
         utmSource: new Set(), utmMedium: new Set(),
         utmCampaign: new Set(), utmContent: new Set(),
+        campaignCode: new Set(), campaignCodeOrigin: new Set(),
         branch: new Set(), division: new Set(),
       });
       return;
@@ -52,6 +55,7 @@ export default function FilterPanel({ options, filters, onChange, totalRows, fil
     filters.clientType.size || filters.canonicalSource.size ||
     filters.utmSource.size || filters.utmMedium.size ||
     filters.utmCampaign.size || filters.utmContent.size ||
+    filters.campaignCode.size || filters.campaignCodeOrigin.size ||
     filters.branch.size || filters.division.size
   );
 
@@ -92,6 +96,12 @@ export default function FilterPanel({ options, filters, onChange, totalRows, fil
 
       <Section title="Client type" count={filters.clientType.size} defaultOpen>
         <ChipList values={options.clientType} selected={filters.clientType} onToggle={(v) => toggle('clientType', v)} />
+      </Section>
+      <Section title="Campaign code" count={filters.campaignCode.size} defaultOpen>
+        <ChipList values={options.campaignCode} selected={filters.campaignCode} onToggle={(v) => toggle('campaignCode', v)} searchable />
+      </Section>
+      <Section title="Code origin (UTM / Internal)" count={filters.campaignCodeOrigin.size}>
+        <ChipList values={options.campaignCodeOrigin} selected={filters.campaignCodeOrigin} onToggle={(v) => toggle('campaignCodeOrigin', v)} />
       </Section>
       <Section title="Source bucket" count={filters.canonicalSource.size}>
         <ChipList values={options.canonicalSource} selected={filters.canonicalSource} onToggle={(v) => toggle('canonicalSource', v)} />

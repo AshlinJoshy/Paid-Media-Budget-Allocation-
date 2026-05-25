@@ -23,6 +23,8 @@ const EMPTY_FILTERS: Filters = {
   utmMedium: new Set(),
   utmCampaign: new Set(),
   utmContent: new Set(),
+  campaignCode: new Set(),
+  campaignCodeOrigin: new Set(),
   branch: new Set(),
   division: new Set(),
 };
@@ -80,7 +82,8 @@ export default function AnalyticsPage() {
 
   const funnels = useMemo(() => pickFunnels(filters.clientType, filtered), [filtered, filters.clientType]);
 
-  const byCampaign = useMemo(() => attachSpend(groupBy(filtered, 'utm_campaign'), spendByCampaign), [filtered, spendByCampaign]);
+  const byCampaign = useMemo(() => attachSpend(groupBy(filtered, 'campaign_code'), spendByCampaign), [filtered, spendByCampaign]);
+  const byUtmCampaign = useMemo(() => groupBy(filtered, 'utm_campaign'), [filtered]);
   const byTerm = useMemo(() => groupBy(filtered, 'utm_term'), [filtered]);
   const byContent = useMemo(() => groupBy(filtered, 'utm_content'), [filtered]);
   const bySource = useMemo(() => groupBy(filtered, 'canonical_source'), [filtered]);
@@ -120,6 +123,8 @@ export default function AnalyticsPage() {
     utmMedium: uniqueValues(leads, 'utm_medium'),
     utmCampaign: uniqueValues(leads, 'utm_campaign'),
     utmContent: uniqueValues(leads, 'utm_content'),
+    campaignCode: uniqueValues(leads, 'campaign_code'),
+    campaignCodeOrigin: uniqueValues(leads, 'campaign_code_origin'),
     branch: uniqueValues(leads, 'branch'),
     division: uniqueValues(leads, 'division'),
   }), [leads]);
@@ -254,19 +259,21 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
-              {/* Campaign performance */}
+              {/* Campaign performance (unified code) */}
               <Leaderboard
-                title="Campaign performance (utm_campaign)"
+                title="Campaign performance (unified — UTM + internal code)"
                 rows={byCampaign}
                 showCost
-                emptyMessage="No leads have a utm_campaign set under the current filters."
+                emptyMessage="No leads have a campaign_code set under the current filters."
               />
 
-              {/* Ad set + ad */}
+              {/* UTM-only campaign + ad set + ad */}
               <div className="grid md:grid-cols-2 gap-4">
+                <Leaderboard title="UTM campaigns only" rows={byUtmCampaign} />
                 <Leaderboard title="Ad sets (utm_term)" rows={byTerm} />
-                <Leaderboard title="Ads (utm_content)" rows={byContent} />
               </div>
+
+              <Leaderboard title="Ads (utm_content)" rows={byContent} />
 
               {/* Branch */}
               <Leaderboard title="Branch performance" rows={byBranch} />

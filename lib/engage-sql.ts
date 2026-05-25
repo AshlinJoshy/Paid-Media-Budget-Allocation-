@@ -50,6 +50,17 @@ WITH src AS (
   FROM leads
   WHERE created_at >= '${safeSince}'
 ),
+lead_camp AS (
+  -- Internal Engage campaigns via lead_campaigns ↔ campaigns. A lead can have
+  -- multiple; we GROUP_CONCAT and SUBSTRING_INDEX later to pick the first.
+  SELECT lc.lead_id,
+    GROUP_CONCAT(DISTINCT c.reference ORDER BY c.id SEPARATOR ' | ') AS campaign_codes,
+    GROUP_CONCAT(DISTINCT c.name      ORDER BY c.id SEPARATOR ' | ') AS campaign_names
+  FROM lead_campaigns lc
+  JOIN campaigns c ON c.id = lc.campaign_id
+  JOIN leads l ON l.id = lc.lead_id AND l.created_at >= '${safeSince}'
+  GROUP BY lc.lead_id
+),
 acts AS (
   SELECT a.lead_id,
     SUM(a.type='Qualification')                    AS qualifications,
@@ -101,6 +112,19 @@ SELECT
   NULLIF(JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.campaign')),'null') AS utm_campaign,
   NULLIF(JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.term')),    'null') AS utm_term,
   NULLIF(JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.content')), 'null') AS utm_content,
+  -- Unified campaign code: prefer UTM, fall back to internal Engage code (first
+  -- one if the lead is tagged with multiple).
+  COALESCE(
+    NULLIF(JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.campaign')), 'null'),
+    SUBSTRING_INDEX(lcamp.campaign_codes, ' | ', 1)
+  )                                                       AS campaign_code,
+  CASE
+    WHEN NULLIF(JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.campaign')), 'null') IS NOT NULL THEN 'UTM'
+    WHEN lcamp.campaign_codes IS NOT NULL                                           THEN 'Internal'
+    ELSE NULL
+  END                                                     AS campaign_code_origin,
+  lcamp.campaign_codes                                    AS internal_campaign_codes,
+  lcamp.campaign_names                                    AS internal_campaign_names,
   br.name                                                 AS branch,
   dv.name                                                 AS division,
   1                                                       AS stage_1_lead_received,
@@ -163,6 +187,7 @@ FROM leads l
 LEFT JOIN branches  br ON br.id = (SELECT u2.branch_id FROM users u2 WHERE u2.id = l.agent_id)
 LEFT JOIN divisions dv ON dv.id = l.division_id
 LEFT JOIN src         ON src.id = l.id
+LEFT JOIN lead_camp lcamp ON lcamp.lead_id = l.id
 LEFT JOIN acts        ON acts.lead_id = l.id
 LEFT JOIN deal_out dl ON dl.lead_id = l.id
 LEFT JOIN cc          ON cc.lead_id = l.id
@@ -173,13 +198,28 @@ ORDER BY l.created_at DESC
 `;
 }
 
-// Aggregate: qualified-lead count grouped by utm_campaign (case-insensitive trim).
+// Aggregate: qualified-lead count grouped by unified campaign code
+// (UTM utm.campaign preferred, falls back to internal campaigns.reference).
 // Used to refresh paid_assignments.qualified_leads.
 export function buildQualifiedRollupSql(since: string): string {
   const safeSince = since.replace(/[^0-9-]/g, '');
   return `
+WITH lead_camp AS (
+  SELECT lc.lead_id,
+    SUBSTRING_INDEX(
+      GROUP_CONCAT(DISTINCT c.reference ORDER BY c.id SEPARATOR ' | '),
+      ' | ', 1
+    ) AS internal_code
+  FROM lead_campaigns lc
+  JOIN campaigns c ON c.id = lc.campaign_id
+  JOIN leads l ON l.id = lc.lead_id AND l.created_at >= '${safeSince}'
+  GROUP BY lc.lead_id
+)
 SELECT
-  TRIM(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.campaign')), 'null')) AS utm_campaign,
+  TRIM(COALESCE(
+    NULLIF(JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.campaign')), 'null'),
+    lcamp.internal_code
+  )) AS campaign_code,
   SUM(
     CASE WHEN l.status IN ('Qualified','Viewing','Offer','Reserved','Deal','Valuation','Listed')
               OR EXISTS (
@@ -188,10 +228,16 @@ SELECT
          THEN 1 ELSE 0 END
   ) AS qualified_leads
 FROM leads l
+LEFT JOIN lead_camp lcamp ON lcamp.lead_id = l.id
 WHERE l.created_at >= '${safeSince}'
-  AND JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.campaign')) IS NOT NULL
-  AND JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.campaign')) <> 'null'
-GROUP BY TRIM(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.campaign')), 'null'))
-HAVING utm_campaign IS NOT NULL AND utm_campaign <> ''
+  AND COALESCE(
+        NULLIF(JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.campaign')), 'null'),
+        lcamp.internal_code
+      ) IS NOT NULL
+GROUP BY TRIM(COALESCE(
+  NULLIF(JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.campaign')), 'null'),
+  lcamp.internal_code
+))
+HAVING campaign_code IS NOT NULL AND campaign_code <> ''
 `;
 }
