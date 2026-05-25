@@ -143,6 +143,12 @@ export async function metabaseQuery(sql: string, params: unknown[] = []): Promis
         type: 'native',
         native: { query: sql, 'template-tags': {} },
         parameters: params,
+        // Metabase /api/dataset caps "userland" queries at 2000 rows by default
+        // to protect the UI. We need the full result set, so disable that.
+        middleware: {
+          'add-default-userland-constraints?': false,
+          'userland-query?': false,
+        },
       }),
       cache: 'no-store',
     });
