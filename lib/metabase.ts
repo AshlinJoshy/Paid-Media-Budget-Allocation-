@@ -22,8 +22,16 @@ function env(name: string): string {
   return v;
 }
 
+// Tolerate base URLs without a scheme (e.g. "engage.metabaseapp.com") by
+// defaulting to https. Also strips trailing slashes so the path concat is clean.
+function baseUrl(): string {
+  let raw = env('METABASE_BASE_URL').trim().replace(/\/+$/, '');
+  if (!/^https?:\/\//i.test(raw)) raw = 'https://' + raw;
+  return raw;
+}
+
 async function login(): Promise<string> {
-  const res = await fetch(`${env('METABASE_BASE_URL')}/api/session`, {
+  const res = await fetch(`${baseUrl()}/api/session`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -58,7 +66,7 @@ export async function metabaseQuery(sql: string, params: unknown[] = []): Promis
   if (!databaseId) throw new Error('METABASE_DATABASE_ID must be a number');
 
   async function run(token: string) {
-    return fetch(`${env('METABASE_BASE_URL')}/api/dataset`, {
+    return fetch(`${baseUrl()}/api/dataset`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
