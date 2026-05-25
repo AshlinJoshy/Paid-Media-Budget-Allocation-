@@ -24,7 +24,6 @@ export interface LeadRow {
   utm_term: string | null;
   utm_content: string | null;
   campaign_code: string | null;
-  campaign_code_origin: string | null; // 'UTM' | 'Internal' | null
   internal_campaign_ids: string | null;
   internal_campaign_codes: string | null;
   internal_campaign_names: string | null;
@@ -90,10 +89,9 @@ export interface Filters {
   canonicalSource: StringFilter;
   utmSource: StringFilter;
   utmMedium: StringFilter;
-  utmCampaign: StringFilter;
+  utmCampaign: StringFilter;       // From URL query string (can vary per ad)
   utmContent: StringFilter;
-  campaignCode: StringFilter;
-  campaignCodeOrigin: StringFilter; // 'UTM' / 'Internal'
+  campaignCode: StringFilter;      // Internal Engage tracking code (assigned by team)
   branch: StringFilter;
   division: StringFilter;
 }
@@ -117,7 +115,6 @@ export function applyFilters(leads: LeadRow[], f: Filters): LeadRow[] {
     if (!passes(f.utmCampaign, l.utm_campaign)) return false;
     if (!passes(f.utmContent, l.utm_content)) return false;
     if (!passes(f.campaignCode, l.campaign_code)) return false;
-    if (!passes(f.campaignCodeOrigin, l.campaign_code_origin)) return false;
     if (!passes(f.branch, l.branch)) return false;
     if (!passes(f.division, l.division)) return false;
     return true;
@@ -144,7 +141,6 @@ const FILTER_TO_COLUMN: Record<Exclude<keyof Filters, 'dateFrom' | 'dateTo'>, ke
   utmCampaign: 'utm_campaign',
   utmContent: 'utm_content',
   campaignCode: 'campaign_code',
-  campaignCodeOrigin: 'campaign_code_origin',
   branch: 'branch',
   division: 'division',
 };

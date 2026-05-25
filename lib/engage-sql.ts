@@ -236,19 +236,15 @@ SELECT
   NULLIF(JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.campaign')),'null') AS utm_campaign,
   NULLIF(JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.term')),    'null') AS utm_term,
   NULLIF(JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.content')), 'null') AS utm_content,
-  -- Unified campaign code: prefer UTM, fall back to first internal Engage code
-  COALESCE(
-    NULLIF(JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.campaign')), 'null'),
-    SUBSTRING_INDEX(lc.campaign_codes, ' | ', 1)
-  )                                                       AS campaign_code,
-  CASE
-    WHEN NULLIF(JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.campaign')), 'null') IS NOT NULL THEN 'UTM'
-    WHEN lc.campaign_codes IS NOT NULL                                              THEN 'Internal'
-    ELSE NULL
-  END                                                     AS campaign_code_origin,
-  lc.campaign_ids                                         AS internal_campaign_ids,
-  lc.campaign_codes                                       AS internal_campaign_codes,
-  lc.campaign_names                                       AS internal_campaign_names,
+  -- Internal Engage campaign code (assigned by the marketing team in
+  -- lead_campaigns ↔ campaigns.reference). Independent of utm_campaign —
+  -- one internal code can have many UTM variants across ads. A lead can be
+  -- tagged with multiple internal codes; we take the first one for the
+  -- single-value filter, full list stays in internal_campaign_codes.
+  SUBSTRING_INDEX(lc.campaign_codes, ' | ', 1)             AS campaign_code,
+  lc.campaign_ids                                          AS internal_campaign_ids,
+  lc.campaign_codes                                        AS internal_campaign_codes,
+  lc.campaign_names                                        AS internal_campaign_names,
   -- Agent / org (id + display name only)
   u.id                                                    AS current_agent_id,
   u.name                                                  AS current_agent_name,

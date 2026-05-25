@@ -24,7 +24,6 @@ const EMPTY_FILTERS: Filters = {
   utmCampaign: new Set(),
   utmContent: new Set(),
   campaignCode: new Set(),
-  campaignCodeOrigin: new Set(),
   branch: new Set(),
   division: new Set(),
 };
@@ -82,8 +81,11 @@ export default function AnalyticsPage() {
 
   const funnels = useMemo(() => pickFunnels(filters.clientType, filtered), [filtered, filters.clientType]);
 
+  // Spend is attached to both — budget rows can be named either with the
+  // internal Engage code or with the UTM string, depending on how the team
+  // sets up paid_assignments.paid_campaign_name. Whichever matches wins.
   const byCampaign = useMemo(() => attachSpend(groupBy(filtered, 'campaign_code'), spendByCampaign), [filtered, spendByCampaign]);
-  const byUtmCampaign = useMemo(() => groupBy(filtered, 'utm_campaign'), [filtered]);
+  const byUtmCampaign = useMemo(() => attachSpend(groupBy(filtered, 'utm_campaign'), spendByCampaign), [filtered, spendByCampaign]);
   const byTerm = useMemo(() => groupBy(filtered, 'utm_term'), [filtered]);
   const byContent = useMemo(() => groupBy(filtered, 'utm_content'), [filtered]);
   const bySource = useMemo(() => groupBy(filtered, 'canonical_source'), [filtered]);
@@ -251,21 +253,26 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
-              {/* Campaign performance (unified code) */}
+              {/* Internal campaign code — the Engage-assigned tracking ID */}
               <Leaderboard
-                title="Campaign performance (unified — UTM + internal code)"
+                title="Internal campaign code (Engage tracking ID)"
                 rows={byCampaign}
                 showCost
-                emptyMessage="No leads have a campaign_code set under the current filters."
+                emptyMessage="No leads have an internal campaign code under the current filters."
               />
 
-              {/* UTM-only campaign + ad set + ad */}
-              <div className="grid md:grid-cols-2 gap-4">
-                <Leaderboard title="UTM campaigns only" rows={byUtmCampaign} />
-                <Leaderboard title="Ad sets (utm_term)" rows={byTerm} />
-              </div>
+              {/* UTM campaign — the URL query-string value. One internal code
+                  can have many UTM variants across ads, so this is independent. */}
+              <Leaderboard
+                title="UTM campaign (from URL query string)"
+                rows={byUtmCampaign}
+                showCost
+              />
 
-              <Leaderboard title="Ads (utm_content)" rows={byContent} />
+              <div className="grid md:grid-cols-2 gap-4">
+                <Leaderboard title="Ad sets (utm_term)" rows={byTerm} />
+                <Leaderboard title="Ads (utm_content)" rows={byContent} />
+              </div>
 
               {/* Branch */}
               <Leaderboard title="Branch performance" rows={byBranch} />
