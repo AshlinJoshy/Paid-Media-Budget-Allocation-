@@ -83,18 +83,19 @@ export default function AssignmentRow({ row, options, onUpdate, onDelete, onAddO
       <td className="px-2 py-2 min-w-[220px] border border-gray-200">
         <EditableCell value={row.paid_campaign_name ?? ''} onSave={save('paid_campaign_name')} placeholder="Campaign name…" />
       </td>
-      {/* Status */}
+      {/* Status — live from the linked ad platform (Supermetrics sync), read-only.
+          Shows "—" until the row is linked to a campaign and synced. */}
       <td className="px-2 py-2 min-w-[100px] border border-gray-200">
-        <DropdownCell
-          value={row.status}
-          options={options.status}
-          field="status"
-          onSave={save('status')}
-          onAddOption={onAddOption}
-          onDeleteOption={onDeleteOption}
-          placeholder="Status…"
-          chipClassName={statusChipClass(row.status)}
-        />
+        {row.campaign_status ? (
+          <span
+            className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${statusChipClass(row.campaign_status)}`}
+            title="Live status from the ad platform — synced from Supermetrics, not editable."
+          >
+            {row.campaign_status}
+          </span>
+        ) : (
+          <span className="text-xs text-gray-400" title="Link this row to a campaign and run Sync to populate live status.">—</span>
+        )}
       </td>
       {/* Start Date */}
       <td className="px-2 py-2 min-w-[120px] border border-gray-200">
