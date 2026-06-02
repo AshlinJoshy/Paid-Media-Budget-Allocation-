@@ -1,12 +1,13 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Save, RefreshCw, Check, Key, Database } from 'lucide-react';
+import { ArrowLeft, Save, RefreshCw, Check, Key, Database, AlertCircle } from 'lucide-react';
 import { SupermetricsAccount, DS_NAMES } from '@/types';
 import PlatformBadge from '@/components/PlatformBadge';
 
 export default function SettingsPage() {
   const [apiKey, setApiKey] = useState('');
   const [hasKey, setHasKey] = useState(false);
+  const [keyLoading, setKeyLoading] = useState(true);
   const [accounts, setAccounts] = useState<SupermetricsAccount[]>([]);
   const [fetchingAccounts, setFetchingAccounts] = useState(false);
   const [savingKey, setSavingKey] = useState(false);
@@ -17,6 +18,28 @@ export default function SettingsPage() {
     setTimeout(() => setMsg(null), 3500);
   };
 
+  // Re-fetches hasKey from the server. Authoritative — don't trust local state
+  // after a save, since the DB call might've silently failed (e.g., Supabase
+  // free-tier project paused).
+  const refreshHasKey = useCallback(async () => {
+    try {
+      const res = await fetch('/api/settings', { cache: 'no-store' });
+      if (!res.ok) {
+        setHasKey(false);
+        return false;
+      }
+      const data = await res.json();
+      const present = data.has_api_key === 'true';
+      setHasKey(present);
+      return present;
+    } catch {
+      setHasKey(false);
+      return false;
+    } finally {
+      setKeyLoading(false);
+    }
+  }, []);
+
   const loadAccounts = useCallback(async () => {
     const res = await fetch('/api/supermetrics/accounts');
     const data = await res.json();
@@ -24,26 +47,34 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    fetch('/api/settings').then((r) => r.json()).then((data) => {
-      setHasKey(data.has_api_key === 'true');
-    });
+    refreshHasKey();
     loadAccounts();
-  }, [loadAccounts]);
+  }, [refreshHasKey, loadAccounts]);
 
   async function saveApiKey() {
     if (!apiKey.trim()) return;
     setSavingKey(true);
     try {
-      await fetch('/api/settings', {
+      const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ supermetrics_api_key: apiKey.trim() }),
       });
-      setHasKey(true);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        flash(body.error || `Save failed (HTTP ${res.status}). Check that the database is reachable.`, 'error');
+        return;
+      }
+      // Re-fetch from server — confirms the row really landed in `settings`.
+      const present = await refreshHasKey();
+      if (!present) {
+        flash('Save returned OK but the key did not persist. Database may be paused.', 'error');
+        return;
+      }
       setApiKey('');
       flash('API key saved');
     } catch {
-      flash('Failed to save API key', 'error');
+      flash('Network error saving API key', 'error');
     } finally {
       setSavingKey(false);
     }
@@ -108,17 +139,26 @@ export default function SettingsPage() {
 
         {/* Supermetrics API Key */}
         <section className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Key className="h-4 w-4 text-gray-500" />
-            <h2 className="font-semibold text-gray-800">Supermetrics API Key</h2>
-          </div>
-
-          {hasKey && (
-            <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded">
-              <Check className="h-4 w-4" />
-              API key is configured. Enter a new key below to replace it.
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Key className="h-4 w-4 text-gray-500" />
+              <h2 className="font-semibold text-gray-800">Supermetrics API Key</h2>
             </div>
-          )}
+            {/* Persistent status indicator — green tick when configured, amber warning when missing */}
+            {!keyLoading && (
+              hasKey ? (
+                <span className="flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-full">
+                  <Check className="h-3.5 w-3.5" />
+                  Configured
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  Not set
+                </span>
+              )
+            )}
+          </div>
 
           <div className="flex gap-2">
             <input
@@ -139,7 +179,7 @@ export default function SettingsPage() {
             </button>
           </div>
           <p className="text-xs text-gray-400">
-            Find your API key in the Supermetrics app under Account → API. The key is stored locally on your machine and never sent anywhere except Supermetrics.
+            Find your API key in the Supermetrics app under Account → API. The key is stored in your Supabase settings table and never sent anywhere except Supermetrics.
           </p>
         </section>
 
