@@ -73,7 +73,7 @@ export async function smFetchAccounts(apiKey: string, dsId: string): Promise<SMR
   return (json.data ?? []) as SMRawAccount[];
 }
 
-async function postWithRetry(url: string, body: unknown, retries = 1): Promise<Response> {
+async function postWithRetry(url: string, body: unknown, retries = 2): Promise<Response> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     const res = await fetch(url, {
       method: 'POST',
@@ -85,6 +85,25 @@ async function postWithRetry(url: string, body: unknown, retries = 1): Promise<R
     await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
   }
   throw new Error('postWithRetry exhausted');
+}
+
+// Supermetrics error bodies look like:
+//   { meta: { request_id: "..." }, error: { code, message, description } }
+// Extract a compact human-readable summary that includes the request_id, since
+// that's what you need when filing a support ticket.
+function formatSmError(status: number, rawBody: string): string {
+  try {
+    const j = JSON.parse(rawBody) as {
+      meta?: { request_id?: string };
+      error?: { code?: string; message?: string; description?: string };
+    };
+    const code = j.error?.code ?? `HTTP ${status}`;
+    const msg = j.error?.description ?? j.error?.message ?? rawBody.slice(0, 200);
+    const reqId = j.meta?.request_id ? ` [request_id=${j.meta.request_id}]` : '';
+    return `${code}: ${msg}${reqId}`;
+  } catch {
+    return `HTTP ${status}: ${rawBody.slice(0, 200)}`;
+  }
 }
 
 export async function smFetchCampaigns(
@@ -108,7 +127,7 @@ export async function smFetchCampaigns(
   };
 
   const res = await postWithRetry(`${BASE}/query/data/json`, body);
-  if (!res.ok) throw new Error(`SM query error ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(formatSmError(res.status, await res.text()));
   const json = await res.json();
 
   const rawData: unknown[] = json.data ?? [];

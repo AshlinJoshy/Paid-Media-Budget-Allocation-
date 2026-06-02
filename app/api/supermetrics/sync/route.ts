@@ -19,7 +19,7 @@ export async function POST(req: Request) {
 
   const { data: selectedAccounts } = await supabase
     .from('supermetrics_accounts')
-    .select('ds_id, account_id')
+    .select('ds_id, ds_name, account_id, account_name')
     .eq('is_selected', true);
 
   if (!selectedAccounts?.length) {
@@ -29,56 +29,51 @@ export async function POST(req: Request) {
     );
   }
 
-  // Group by ds_id
-  const byDs: Record<string, string[]> = {};
-  for (const acc of selectedAccounts) {
-    if (!byDs[acc.ds_id]) byDs[acc.ds_id] = [];
-    byDs[acc.ds_id].push(acc.account_id);
-  }
-
   const errors: string[] = [];
   const warnings: string[] = [];
   let totalCampaigns = 0;
 
-  for (const [dsId, accountIds] of Object.entries(byDs)) {
-    for (const accountId of accountIds) {
-      try {
-        const rows = await smFetchCampaigns(keyRow.value, dsId, [accountId], dateRange);
-        const platform = DS_TO_PLATFORM[dsId] ?? 'unknown';
+  // One request per account so a single failure doesn't poison the rest, and
+  // so error messages can name the offending account directly.
+  for (const acc of selectedAccounts) {
+    const label = `${acc.ds_name} — "${acc.account_name}"`;
+    try {
+      const rows = await smFetchCampaigns(keyRow.value, acc.ds_id, [acc.account_id], dateRange);
+      const platform = DS_TO_PLATFORM[acc.ds_id] ?? 'unknown';
 
-        let skipped = 0;
-        for (const row of rows) {
-          if (!row.campaign_id) {
-            skipped++;
-            continue;
-          }
-
-          await supabase.from('cached_campaigns').upsert(
-            {
-              ds_id: dsId,
-              account_id: accountId,
-              campaign_id: row.campaign_id,
-              campaign_name: row.campaign_name,
-              status: row.status,
-              platform,
-              spend: row.spend,
-              leads: row.leads,
-              conversions: row.conversions,
-              impressions: row.impressions,
-              clicks: row.clicks,
-              last_updated: new Date().toISOString(),
-            },
-            { onConflict: 'ds_id,account_id,campaign_id' }
-          );
-          totalCampaigns++;
+      let skipped = 0;
+      for (const row of rows) {
+        if (!row.campaign_id) {
+          skipped++;
+          continue;
         }
 
-        if (skipped > 0) {
-          warnings.push(`${dsId}/${accountId}: skipped ${skipped} row(s) with missing campaign_id`);
-        }
-      } catch (err) {
-        errors.push(`${dsId}/${accountId}: ${err instanceof Error ? err.message : String(err)}`);
+        await supabase.from('cached_campaigns').upsert(
+          {
+            ds_id: acc.ds_id,
+            account_id: acc.account_id,
+            campaign_id: row.campaign_id,
+            campaign_name: row.campaign_name,
+            status: row.status,
+            platform,
+            spend: row.spend,
+            leads: row.leads,
+            conversions: row.conversions,
+            impressions: row.impressions,
+            clicks: row.clicks,
+            last_updated: new Date().toISOString(),
+          },
+          { onConflict: 'ds_id,account_id,campaign_id' }
+        );
+        totalCampaigns++;
       }
+
+      if (skipped > 0) {
+        warnings.push(`${label}: skipped ${skipped} row(s) with missing campaign_id`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(`${label}: ${msg} — likely an expired OAuth connection or a missing tracked field. Re-link this account in Supermetrics → Settings → Data sources.`);
     }
   }
 
