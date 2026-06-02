@@ -60,6 +60,9 @@ export interface PaidAssignment {
   budget_spent: number;
   remaining: number;
   leads: number;
+  qualified_leads: number;
+  impressions: number;
+  clicks: number;
   cpl: number;
   last_synced: string | null;
   created_at: string;
@@ -68,6 +71,7 @@ export interface PaidAssignment {
 
 export interface DropdownOptions {
   entity: string[];
+  type: string[];
   status: string[];
   source: string[];
   start_month: string[];
@@ -93,5 +97,7 @@ export interface CachedCampaign {
   spend: number;
   leads: number;
   conversions: number;
+  impressions: number;
+  clicks: number;
   last_updated: string;
 }

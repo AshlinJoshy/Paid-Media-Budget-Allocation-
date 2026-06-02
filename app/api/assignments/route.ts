@@ -22,6 +22,8 @@ export async function POST(req: Request) {
       budget_allocation: body.budget_allocation ?? 0,
       budget_spent: body.budget_spent ?? 0,
       leads: body.leads ?? 0,
+      impressions: body.impressions ?? 0,
+      clicks: body.clicks ?? 0,
     })
     .select()
     .single();

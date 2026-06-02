@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Search, RefreshCw, X, GripVertical } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
@@ -15,7 +15,9 @@ function DraggableItem({ campaign }: DraggableItemProps) {
     id: campaign.id,
     data: { campaign },
   });
-  const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined;
+  const style = transform
+    ? { transform: CSS.Translate.toString(transform), transition: 'box-shadow 150ms ease, opacity 150ms ease' }
+    : { transition: 'transform 180ms cubic-bezier(0.2, 0, 0, 1), box-shadow 150ms ease, border-color 150ms ease, background-color 150ms ease' };
   const colors = PLATFORM_COLORS[campaign.platform] ?? PLATFORM_COLORS['unknown'];
   const isEnabled = campaign.status.toUpperCase() === 'ENABLED';
 
@@ -23,9 +25,14 @@ function DraggableItem({ campaign }: DraggableItemProps) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-start gap-1.5 px-2 py-2 rounded border ${colors.row} border-transparent hover:border-gray-200 cursor-grab select-none ${isDragging ? 'opacity-50 shadow-lg z-50' : ''}`}
+      className={`group flex items-start gap-1.5 px-2 py-2 rounded border ${colors.row} border-transparent hover:border-gray-200 hover:shadow-sm cursor-grab active:cursor-grabbing select-none will-change-transform ${isDragging ? 'opacity-40 shadow-lg ring-1 ring-blue-300 z-50' : ''}`}
     >
-      <button {...listeners} {...attributes} className="mt-0.5 text-gray-300 hover:text-gray-500 touch-none">
+      <button
+        {...listeners}
+        {...attributes}
+        className="mt-0.5 text-gray-300 group-hover:text-gray-500 touch-none transition-colors duration-150"
+        aria-label="Drag campaign"
+      >
         <GripVertical className="h-3.5 w-3.5" />
       </button>
       <div className="flex-1 min-w-0">
@@ -46,9 +53,10 @@ function DraggableItem({ campaign }: DraggableItemProps) {
 
 interface Props {
   onClose: () => void;
+  assignedCampaignIds: Set<string>;
 }
 
-export default function CampaignPanel({ onClose }: Props) {
+export default function CampaignPanel({ onClose, assignedCampaignIds }: Props) {
   const [campaigns, setCampaigns] = useState<CachedCampaign[]>([]);
   const [search, setSearch] = useState('');
   const [dsFilter, setDsFilter] = useState('');
@@ -80,10 +88,15 @@ export default function CampaignPanel({ onClose }: Props) {
     try {
       const res = await fetch('/api/supermetrics/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
       const data = await res.json();
-      if (!res.ok) setSyncError(data.error || 'Sync failed');
-      else {
+      if (!res.ok) {
+        setSyncError(data.error || 'Sync failed');
+      } else {
         setLastSync(new Date().toISOString());
         load(search, dsFilter);
+        const issues: string[] = [...(data.errors ?? []), ...(data.warnings ?? [])];
+        if (issues.length) {
+          setSyncError(`Sync warnings (${issues.length}):\n${issues.join('\n')}`);
+        }
       }
     } catch (e) {
       setSyncError('Network error');
@@ -94,8 +107,14 @@ export default function CampaignPanel({ onClose }: Props) {
 
   const dsPlatforms = [...new Set(campaigns.map((c) => c.ds_id))];
 
+  const visibleCampaigns = useMemo(
+    () => campaigns.filter((c) => !assignedCampaignIds.has(c.campaign_id)),
+    [campaigns, assignedCampaignIds],
+  );
+  const hiddenCount = campaigns.length - visibleCampaigns.length;
+
   return (
-    <div className="w-80 flex-shrink-0 border-l border-gray-200 bg-white flex flex-col h-full">
+    <div className="w-80 flex-shrink-0 border-l border-gray-200 bg-white flex flex-col h-full animate-in-panel">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-200 bg-gray-50">
         <span className="text-sm font-semibold text-gray-700">Supermetrics Campaigns</span>
@@ -141,19 +160,22 @@ export default function CampaignPanel({ onClose }: Props) {
 
       {/* Error */}
       {syncError && (
-        <div className="mx-2 mt-2 px-2 py-1.5 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+        <div className="mx-2 mt-2 px-2 py-1.5 bg-red-50 border border-red-200 rounded text-xs text-red-700 whitespace-pre-line">
           {syncError}
         </div>
       )}
 
       {/* Count + last sync */}
       <div className="px-3 py-1 flex items-center justify-between">
-        <span className="text-[11px] text-gray-400">{campaigns.length} campaign{campaigns.length !== 1 ? 's' : ''}</span>
+        <span className="text-[11px] text-gray-400">
+          {visibleCampaigns.length} available
+          {hiddenCount > 0 && <span className="text-gray-300"> · {hiddenCount} assigned</span>}
+        </span>
         {lastSync && <span className="text-[10px] text-gray-300">Synced {new Date(lastSync).toLocaleDateString()}</span>}
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto px-1 pb-4 space-y-0.5">
+      <div className="flex-1 overflow-y-auto px-1 pb-4 space-y-0.5 scroll-smooth">
         {loading && (
           <div className="py-8 text-center text-xs text-gray-400">Loading…</div>
         )}
@@ -162,7 +184,12 @@ export default function CampaignPanel({ onClose }: Props) {
             {search ? 'No campaigns match your search.' : 'No campaigns yet. Sync from Supermetrics to see campaigns here.'}
           </div>
         )}
-        {campaigns.map((c) => (
+        {!loading && campaigns.length > 0 && visibleCampaigns.length === 0 && (
+          <div className="py-8 text-center text-xs text-gray-400">
+            All synced campaigns are already assigned.
+          </div>
+        )}
+        {visibleCampaigns.map((c) => (
           <DraggableItem key={c.id} campaign={c} />
         ))}
       </div>

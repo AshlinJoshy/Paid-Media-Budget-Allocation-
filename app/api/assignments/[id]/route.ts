@@ -6,6 +6,9 @@ const ALLOWED = [
   'type', 'source', 'platform', 'start_month', 'start_date', 'status',
   'campaign_status', 'budget_allocation', 'budget_spent', 'leads',
   'supermetrics_campaign_id', 'paid_campaign_name',
+  // Metrics that the drag-onto-row flow seeds from cached_campaigns; sync
+  // refreshes them later via direct .update (bypasses this list).
+  'impressions', 'clicks', 'qualified_leads',
 ];
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
