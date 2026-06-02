@@ -83,10 +83,20 @@ export default function AssignmentRow({ row, options, onUpdate, onDelete, onAddO
       <td className="px-2 py-2 min-w-[220px] border border-gray-200">
         <EditableCell value={row.paid_campaign_name ?? ''} onSave={save('paid_campaign_name')} placeholder="Campaign name…" />
       </td>
-      {/* Status — live from the linked ad platform (Supermetrics sync), read-only.
-          Shows "—" until the row is linked to a campaign and synced. */}
+      {/* Status — read-only.
+          - No campaign linked yet → 'Planned' (the row is a placeholder for an
+            upcoming launch). Drag a Supermetrics campaign onto the row to link it.
+          - Linked but no synced status yet → '—' with a hint to run Sync.
+          - Linked + synced → live platform status (ENABLED/PAUSED/etc.) */}
       <td className="px-2 py-2 min-w-[100px] border border-gray-200">
-        {row.campaign_status ? (
+        {!row.supermetrics_campaign_id ? (
+          <span
+            className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700"
+            title="No campaign linked yet — this row is in planning. Drag a campaign from the right panel to launch it."
+          >
+            Planned
+          </span>
+        ) : row.campaign_status ? (
           <span
             className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${statusChipClass(row.campaign_status)}`}
             title="Live status from the ad platform — synced from Supermetrics, not editable."
@@ -94,7 +104,7 @@ export default function AssignmentRow({ row, options, onUpdate, onDelete, onAddO
             {row.campaign_status}
           </span>
         ) : (
-          <span className="text-xs text-gray-400" title="Link this row to a campaign and run Sync to populate live status.">—</span>
+          <span className="text-xs text-gray-400" title="Campaign linked but not synced yet. Run Sync to populate live status.">—</span>
         )}
       </td>
       {/* Start Date */}

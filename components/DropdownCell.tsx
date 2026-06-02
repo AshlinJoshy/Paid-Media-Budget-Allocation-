@@ -1,5 +1,6 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, Plus, X, ChevronDown, Trash2 } from 'lucide-react';
 
 interface Props {
@@ -23,14 +24,38 @@ export default function DropdownCell({
   const [newVal, setNewVal] = useState('');
   const [filter, setFilter] = useState('');
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
-  const ref = useRef<HTMLDivElement>(null);
+  const [popupPos, setPopupPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
   const newRef = useRef<HTMLInputElement>(null);
 
+  // Compute popup position relative to viewport when opening, and on scroll/resize
+  // while open. The popup is portaled to body, so we need explicit fixed coords.
+  useEffect(() => {
+    if (!open) { setPopupPos(null); return; }
+    function reposition() {
+      const btn = buttonRef.current;
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      setPopupPos({ top: r.bottom + 2, left: r.left, width: Math.max(224, r.width) });
+    }
+    reposition();
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
+    return () => {
+      window.removeEventListener('scroll', reposition, true);
+      window.removeEventListener('resize', reposition);
+    };
+  }, [open]);
+
+  // Outside click: now needs to allow clicks INSIDE the portaled popup, which
+  // is no longer a child of the trigger button. Check both refs.
   useEffect(() => {
     function outside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false); setAdding(false); setFilter(''); setPendingDelete(null);
-      }
+      const t = e.target as Node;
+      if (buttonRef.current?.contains(t)) return;
+      if (popupRef.current?.contains(t)) return;
+      setOpen(false); setAdding(false); setFilter(''); setPendingDelete(null);
     }
     document.addEventListener('mousedown', outside);
     return () => document.removeEventListener('mousedown', outside);
@@ -63,8 +88,9 @@ export default function DropdownCell({
   const filtered = options.filter((o) => o.toLowerCase().includes(filter.toLowerCase()));
 
   return (
-    <div ref={ref} className={`relative ${className}`}>
+    <div className={`relative ${className}`}>
       <button
+        ref={buttonRef}
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-1 w-full px-1 py-0.5 text-xs rounded hover:bg-white/60 text-left transition-colors duration-150"
       >
@@ -86,8 +112,12 @@ export default function DropdownCell({
         <ChevronDown className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity duration-150" />
       </button>
 
-      {open && (
-        <div className="absolute z-50 top-full left-0 mt-0.5 w-56 bg-white border border-gray-200 rounded shadow-lg">
+      {open && popupPos && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={popupRef}
+          className="fixed z-[1000] bg-white border border-gray-200 rounded shadow-lg"
+          style={{ top: popupPos.top, left: popupPos.left, width: popupPos.width }}
+        >
           <div className="p-1 border-b border-gray-100">
             <input
               autoFocus
@@ -156,7 +186,8 @@ export default function DropdownCell({
               </button>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
