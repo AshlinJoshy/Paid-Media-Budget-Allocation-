@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
+import { useDroppable } from '@dnd-kit/core';
 import EditableCell from './EditableCell';
 import DropdownCell from './DropdownCell';
 import { PaidAssignment, PLATFORM_COLORS, DropdownOptions } from '@/types';
@@ -38,6 +39,11 @@ export default function AssignmentRow({ row, options, onUpdate, onDelete, onAddO
   const [hovering, setHovering] = useState(false);
   const colors = PLATFORM_COLORS[row.platform] ?? PLATFORM_COLORS['unknown'];
 
+  // Drop target: dragging a Supermetrics campaign onto this row fills it in
+  // place. The id prefix lets BudgetTable.handleDragEnd distinguish row-drops
+  // (PATCH this row) from group-drops (POST a new row).
+  const { setNodeRef, isOver } = useDroppable({ id: `assignment:${row.id}` });
+
   function save(field: string) {
     return (v: string) => {
       const numericFields = ['budget_allocation', 'budget_spent', 'leads', 'qualified_leads', 'impressions', 'clicks'];
@@ -51,7 +57,8 @@ export default function AssignmentRow({ row, options, onUpdate, onDelete, onAddO
 
   return (
     <tr
-      className={`group ${colors.row} ${colors.accent} transition-colors duration-150 hover:brightness-[0.98]`}
+      ref={setNodeRef}
+      className={`group ${colors.row} ${colors.accent} transition-colors duration-150 hover:brightness-[0.98] ${isOver ? 'outline outline-2 outline-blue-400 outline-offset-[-2px]' : ''}`}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
     >

@@ -201,12 +201,9 @@ export default function BudgetTable() {
     if (!over || !active.data.current?.campaign) return;
 
     const cachedCampaign = active.data.current.campaign as CachedCampaign;
-    const targetCampaignId = over.id as string;
+    const overId = over.id as string;
 
-    const target = campaigns.find((c) => c.id === targetCampaignId);
-    if (!target) return;
-
-    await addAssignment(targetCampaignId, {
+    const fill: Partial<PaidAssignment> = {
       supermetrics_campaign_id: cachedCampaign.campaign_id,
       paid_campaign_name: cachedCampaign.campaign_name,
       source: getPlatformFromSource(cachedCampaign.platform) === 'meta' ? 'Meta'
@@ -218,7 +215,41 @@ export default function BudgetTable() {
       leads: cachedCampaign.leads,
       impressions: cachedCampaign.impressions ?? 0,
       clicks: cachedCampaign.clicks ?? 0,
-    } as Partial<PaidAssignment>);
+    };
+
+    // Drop onto an existing row → fill that row in place (keeps user-set
+    // budget_allocation, start_date, type, etc.). Drop onto a campaign group →
+    // append a new row to the group.
+    if (overId.startsWith('assignment:')) {
+      const assignmentId = overId.slice('assignment:'.length);
+      await patchAssignment(assignmentId, fill);
+    } else {
+      const target = campaigns.find((c) => c.id === overId);
+      if (!target) return;
+      await addAssignment(overId, fill);
+    }
+  }
+
+  // Bulk-update an existing assignment (multiple fields in one request) and
+  // reflect the change locally. Used by drag-onto-row to fill a planned row.
+  async function patchAssignment(id: string, fields: Partial<PaidAssignment>) {
+    setCampaigns((prev) =>
+      prev.map((c) => ({
+        ...c,
+        assignments: (c.assignments ?? []).map((a) => {
+          if (a.id !== id) return a;
+          const updated = { ...a, ...fields } as PaidAssignment;
+          updated.remaining = (updated.budget_allocation ?? 0) - (updated.budget_spent ?? 0);
+          updated.cpl = updated.leads > 0 ? Math.round((updated.budget_spent / updated.leads) * 100) / 100 : 0;
+          return updated;
+        }),
+      })),
+    );
+    await fetch(`/api/assignments/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields),
+    });
   }
 
   async function syncEngage() {
