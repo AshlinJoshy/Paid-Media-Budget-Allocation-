@@ -434,3 +434,48 @@ GROUP BY TRIM(COALESCE(
 HAVING campaign_code IS NOT NULL AND campaign_code <> ''
 `;
 }
+
+// Ad-set/ad breakdown for a single campaign. Used by the expandable row in
+// /budget to show how a campaign's leads break down across its ad sets
+// (utm_term) and ads (utm_content). Match is case-insensitive on the unified
+// campaign code (UTM utm.campaign preferred, falls back to internal code).
+//
+// Both `since` and `campaignName` are sanitized — `since` to date chars only,
+// `campaignName` by doubling single quotes (safe inside a SQL string literal).
+export function buildBreakdownSql(since: string, campaignName: string): string {
+  const safeSince = since.replace(/[^0-9-]/g, '');
+  const safeCampaign = campaignName.replace(/'/g, "''");
+  return `
+WITH lead_camp AS (
+  SELECT lc.lead_id,
+    SUBSTRING_INDEX(
+      GROUP_CONCAT(DISTINCT c.reference ORDER BY c.id SEPARATOR ' | '),
+      ' | ', 1
+    ) AS internal_code
+  FROM lead_campaigns lc
+  JOIN campaigns c ON c.id = lc.campaign_id
+  JOIN leads l ON l.id = lc.lead_id AND l.created_at >= '${safeSince}'
+  GROUP BY lc.lead_id
+)
+SELECT
+  COALESCE(NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.term'))),    'null'), '(none)') AS adset,
+  COALESCE(NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.content'))), 'null'), '(none)') AS ad,
+  COUNT(*) AS leads,
+  SUM(
+    CASE WHEN l.status IN ('Qualified','Viewing','Offer','Reserved','Deal','Valuation','Listed')
+              OR EXISTS (
+                SELECT 1 FROM activities a
+                WHERE a.lead_id = l.id AND a.type IN ('Qualification','Valuation'))
+         THEN 1 ELSE 0 END
+  ) AS qualified
+FROM leads l
+LEFT JOIN lead_camp lcamp ON lcamp.lead_id = l.id
+WHERE l.created_at >= '${safeSince}'
+  AND LOWER(TRIM(COALESCE(
+        NULLIF(JSON_UNQUOTE(JSON_EXTRACT(l.utm,'$.campaign')), 'null'),
+        lcamp.internal_code
+      ))) = LOWER('${safeCampaign}')
+GROUP BY adset, ad
+ORDER BY leads DESC, adset, ad
+`;
+}

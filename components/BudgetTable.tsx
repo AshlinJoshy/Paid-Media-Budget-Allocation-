@@ -6,6 +6,7 @@ import Link from 'next/link';
 import CampaignGroup from './CampaignGroup';
 import CampaignPanel from './CampaignPanel';
 import PlatformBadge from './PlatformBadge';
+import { BreakdownData } from './BreakdownRows';
 import { MarketingCampaign, PaidAssignment, DropdownOptions, CachedCampaign, getPlatformFromSource } from '@/types';
 
 const EMPTY_OPTIONS: DropdownOptions = { entity: [], type: [], status: [], source: [], start_month: [] };
@@ -18,6 +19,34 @@ export default function BudgetTable() {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [engageSyncing, setEngageSyncing] = useState(false);
+
+  // Per-row expand state for the ad-set/ad breakdown. Breakdowns are fetched
+  // lazily on first expand and cached by assignment row id; collapsing doesn't
+  // evict the cache so re-expanding is instant.
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [breakdowns, setBreakdowns] = useState<Record<string, BreakdownData | 'loading' | 'error' | undefined>>({});
+
+  const toggleExpand = useCallback(async (rowId: string, paidCampaignName: string) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowId)) next.delete(rowId); else next.add(rowId);
+      return next;
+    });
+    // Fetch on first expand only. Cache stays around until the page reloads.
+    if (breakdowns[rowId] && breakdowns[rowId] !== 'error') return;
+    setBreakdowns((prev) => ({ ...prev, [rowId]: 'loading' }));
+    try {
+      const res = await fetch(`/api/engage/breakdown?campaign=${encodeURIComponent(paidCampaignName)}`);
+      if (!res.ok) {
+        setBreakdowns((prev) => ({ ...prev, [rowId]: 'error' }));
+        return;
+      }
+      const data = (await res.json()) as BreakdownData;
+      setBreakdowns((prev) => ({ ...prev, [rowId]: data }));
+    } catch {
+      setBreakdowns((prev) => ({ ...prev, [rowId]: 'error' }));
+    }
+  }, [breakdowns]);
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
 
@@ -430,6 +459,9 @@ export default function BudgetTable() {
                     onAddAssignment={addAssignment}
                     onAddOption={addOption}
                     onDeleteOption={deleteOption}
+                    expandedRows={expandedRows}
+                    breakdowns={breakdowns}
+                    onToggleExpand={toggleExpand}
                   />
                 ))}
                 {filteredCampaigns.length === 0 && (

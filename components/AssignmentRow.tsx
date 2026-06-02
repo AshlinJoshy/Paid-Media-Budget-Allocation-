@@ -1,9 +1,10 @@
 'use client';
-import { useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Fragment, useState } from 'react';
+import { Trash2, ChevronRight, ChevronDown } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import EditableCell from './EditableCell';
 import DropdownCell from './DropdownCell';
+import BreakdownRows, { BreakdownData } from './BreakdownRows';
 import { PaidAssignment, PLATFORM_COLORS, DropdownOptions } from '@/types';
 
 interface Props {
@@ -13,6 +14,9 @@ interface Props {
   onDelete: (id: string) => void;
   onAddOption: (field: string, value: string) => void;
   onDeleteOption: (field: string, value: string) => void;
+  expanded: boolean;
+  breakdown: BreakdownData | 'loading' | 'error' | undefined;
+  onToggleExpand: (rowId: string, paidCampaignName: string) => void;
 }
 
 function fmtAED(n: number) {
@@ -35,7 +39,7 @@ function statusChipClass(value: string) {
   return '';
 }
 
-export default function AssignmentRow({ row, options, onUpdate, onDelete, onAddOption, onDeleteOption }: Props) {
+export default function AssignmentRow({ row, options, onUpdate, onDelete, onAddOption, onDeleteOption, expanded, breakdown, onToggleExpand }: Props) {
   const [hovering, setHovering] = useState(false);
   const colors = PLATFORM_COLORS[row.platform] ?? PLATFORM_COLORS['unknown'];
 
@@ -56,6 +60,7 @@ export default function AssignmentRow({ row, options, onUpdate, onDelete, onAddO
   const isEmptyBudget = row.budget_allocation === 0 && row.budget_spent === 0;
 
   return (
+    <Fragment>
     <tr
       ref={setNodeRef}
       className={`group ${colors.row} ${colors.accent} transition-colors duration-150 hover:brightness-[0.98] ${isOver ? 'outline outline-2 outline-blue-400 outline-offset-[-2px]' : ''}`}
@@ -86,9 +91,24 @@ export default function AssignmentRow({ row, options, onUpdate, onDelete, onAddO
           placeholder="Source…"
         />
       </td>
-      {/* Paid Campaign Name */}
+      {/* Paid Campaign Name — with an expand chevron that loads the ad-set / ad
+          breakdown from Engage on first click. Disabled until the row has a
+          paid_campaign_name to match against. */}
       <td className="px-2 py-2 min-w-[220px] border border-gray-200">
-        <EditableCell value={row.paid_campaign_name ?? ''} onSave={save('paid_campaign_name')} placeholder="Campaign name…" />
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            disabled={!row.paid_campaign_name}
+            onClick={() => row.paid_campaign_name && onToggleExpand(row.id, row.paid_campaign_name)}
+            className="shrink-0 text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            title={row.paid_campaign_name ? (expanded ? 'Hide ad sets / ads' : 'Show ad sets / ads (Engage UTM breakdown)') : 'Set a campaign name first'}
+          >
+            {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          </button>
+          <div className="flex-1 min-w-0">
+            <EditableCell value={row.paid_campaign_name ?? ''} onSave={save('paid_campaign_name')} placeholder="Campaign name…" />
+          </div>
+        </div>
       </td>
       {/* Status — read-only.
           - No campaign linked yet → 'Planned' (the row is a placeholder for an
@@ -169,5 +189,7 @@ export default function AssignmentRow({ row, options, onUpdate, onDelete, onAddO
         </button>
       </td>
     </tr>
+    {expanded && <BreakdownRows data={breakdown} />}
+    </Fragment>
   );
 }

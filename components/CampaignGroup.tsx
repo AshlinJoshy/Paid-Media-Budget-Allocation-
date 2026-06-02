@@ -5,6 +5,7 @@ import { useDroppable } from '@dnd-kit/core';
 import AssignmentRow from './AssignmentRow';
 import EditableCell from './EditableCell';
 import DropdownCell from './DropdownCell';
+import { BreakdownData } from './BreakdownRows';
 import { MarketingCampaign, PaidAssignment, DropdownOptions } from '@/types';
 
 interface Props {
@@ -17,6 +18,9 @@ interface Props {
   onAddAssignment: (campaignId: string) => void;
   onAddOption: (field: string, value: string) => void;
   onDeleteOption: (field: string, value: string) => void;
+  expandedRows: Set<string>;
+  breakdowns: Record<string, BreakdownData | 'loading' | 'error' | undefined>;
+  onToggleExpand: (rowId: string, paidCampaignName: string) => void;
 }
 
 function fmtAED(n: number) {
@@ -34,6 +38,7 @@ export default function CampaignGroup({
   onUpdateCampaign, onDeleteCampaign,
   onUpdateAssignment, onDeleteAssignment,
   onAddAssignment, onAddOption, onDeleteOption,
+  expandedRows, breakdowns, onToggleExpand,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [hovering, setHovering] = useState(false);
@@ -165,6 +170,9 @@ export default function CampaignGroup({
           onDelete={onDeleteAssignment}
           onAddOption={onAddOption}
           onDeleteOption={onDeleteOption}
+          expanded={expandedRows.has(a.id)}
+          breakdown={breakdowns[a.id]}
+          onToggleExpand={onToggleExpand}
         />
       ))}
     </>
